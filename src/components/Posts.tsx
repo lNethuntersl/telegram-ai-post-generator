@@ -7,13 +7,16 @@ import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
 import { uk } from 'date-fns/locale';
 import { Post } from '@/types';
-import { RefreshCw } from 'lucide-react';
+import { RefreshCw, HistoryIcon } from 'lucide-react';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 
 const Posts = () => {
-  const { channels } = useChannelContext();
+  const { channels, botLogs } = useChannelContext();
   const [selectedChannelId, setSelectedChannelId] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastRefreshed, setLastRefreshed] = useState(new Date());
+  const [showLogs, setShowLogs] = useState(false);
   
   // Get all posts from all channels or filter by selected channel
   const allPosts = channels.flatMap(channel => 
@@ -91,6 +94,14 @@ const Posts = () => {
             <span className="text-xs text-muted-foreground">
               Оновлено: {formatDate(lastRefreshed.toISOString())}
             </span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowLogs(!showLogs)}
+              className={showLogs ? "bg-primary text-primary-foreground" : ""}
+            >
+              Показати логи
+            </Button>
           </div>
           <div className="flex gap-2">
             <Button 
@@ -116,6 +127,27 @@ const Posts = () => {
         </div>
       </CardHeader>
       <CardContent>
+        {showLogs && (
+          <Accordion type="single" collapsible className="mb-6">
+            <AccordionItem value="logs">
+              <AccordionTrigger>Системні логи операцій</AccordionTrigger>
+              <AccordionContent>
+                <ScrollArea className="h-[200px] border rounded-md p-4 bg-gray-50">
+                  {botLogs.length > 0 ? (
+                    botLogs.map((log, index) => (
+                      <div key={index} className={`mb-1 text-sm ${log.type === 'error' ? 'text-red-500' : log.type === 'success' ? 'text-green-500' : 'text-gray-700'}`}>
+                        <span className="font-mono text-xs">[{formatDate(log.timestamp)}]</span> {log.message}
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-muted-foreground">Немає доступних логів</p>
+                  )}
+                </ScrollArea>
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
+        )}
+        
         {filteredPosts.length > 0 ? (
           <div className="space-y-4">
             {filteredPosts.map((post: Post & { channelName?: string }) => (
@@ -145,6 +177,11 @@ const Posts = () => {
                         alt="Зображення для поста" 
                         className="rounded-md max-h-48 object-cover"
                       />
+                    </div>
+                  )}
+                  {post.error && (
+                    <div className="mt-2 text-sm text-red-500 p-2 border border-red-200 bg-red-50 rounded">
+                      Помилка: {post.error}
                     </div>
                   )}
                 </CardContent>

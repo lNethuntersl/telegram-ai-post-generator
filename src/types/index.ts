@@ -20,6 +20,7 @@ export interface Post {
   status: 'pending' | 'generated' | 'published' | 'failed';
   createdAt: string;
   publishedAt?: string;
+  error?: string;
 }
 
 export interface BotStatus {
@@ -46,4 +47,11 @@ export interface Statistics {
     generated: number;
     published: number;
   }[];
+}
+
+export interface BotLog {
+  timestamp: string;
+  message: string;
+  type: 'info' | 'error' | 'success' | 'warning';
+  details?: any;
 }
