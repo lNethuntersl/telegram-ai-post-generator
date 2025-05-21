@@ -1,17 +1,19 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useChannelContext } from '@/context/ChannelContext';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { format } from 'date-fns';
 import { uk } from 'date-fns/locale';
 import { Post } from '@/types';
+import { RefreshCw } from 'lucide-react';
 
 const Posts = () => {
   const { channels } = useChannelContext();
   const [selectedChannelId, setSelectedChannelId] = useState<string | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [lastRefreshed, setLastRefreshed] = useState(new Date());
   
   // Get all posts from all channels or filter by selected channel
   const allPosts = channels.flatMap(channel => 
@@ -31,6 +33,24 @@ const Posts = () => {
     } catch (e) {
       return 'Невідома дата';
     }
+  };
+
+  // Force refresh state to trigger re-rendering when new posts are generated
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setLastRefreshed(new Date());
+    }, 5000); // Check for updates every 5 seconds
+    
+    return () => clearInterval(interval);
+  }, []);
+
+  const refreshPosts = () => {
+    setIsRefreshing(true);
+    // Simply updating the refresh timestamp will trigger a re-render
+    setTimeout(() => {
+      setLastRefreshed(new Date());
+      setIsRefreshing(false);
+    }, 500);
   };
 
   const getStatusBadgeColor = (status: string) => {
@@ -57,7 +77,21 @@ const Posts = () => {
     <Card>
       <CardHeader className="pb-3">
         <div className="flex justify-between items-center">
-          <CardTitle>Згенеровані пости</CardTitle>
+          <div className="flex items-center gap-2">
+            <CardTitle>Згенеровані пости</CardTitle>
+            <Button 
+              variant="outline" 
+              size="icon" 
+              onClick={refreshPosts} 
+              disabled={isRefreshing}
+              className="h-8 w-8"
+            >
+              <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+            </Button>
+            <span className="text-xs text-muted-foreground">
+              Оновлено: {formatDate(lastRefreshed.toISOString())}
+            </span>
+          </div>
           <div className="flex gap-2">
             <Button 
               variant="outline" 
@@ -91,6 +125,11 @@ const Posts = () => {
                     <div>
                       <h3 className="font-medium">{post.channelName || 'Канал'}</h3>
                       <p className="text-xs text-muted-foreground">{formatDate(post.createdAt)}</p>
+                      {post.publishedAt && (
+                        <p className="text-xs text-green-600">
+                          Опубліковано: {formatDate(post.publishedAt)}
+                        </p>
+                      )}
                     </div>
                     <Badge className={getStatusBadgeColor(post.status)}>
                       {postStatusText(post.status)}

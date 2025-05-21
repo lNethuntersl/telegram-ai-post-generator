@@ -21,7 +21,7 @@ const Dashboard = () => {
         </div>
       </div>
 
-      <Tabs defaultValue="channels" className="w-full">
+      <Tabs defaultValue="posts" className="w-full">
         <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="channels">Канали</TabsTrigger>
           <TabsTrigger value="prompts">Промпти</TabsTrigger>
