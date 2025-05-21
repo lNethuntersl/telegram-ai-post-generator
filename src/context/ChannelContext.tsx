@@ -134,11 +134,216 @@ export const ChannelProvider = ({ children }: ChannelProviderProps) => {
     }));
   };
 
+  // Функція для імітації генерації поста
+  const generatePostForChannel = (channelId: string): Promise<Post> => {
+    return new Promise((resolve) => {
+      const channel = channels.find(c => c.id === channelId);
+      if (!channel) {
+        throw new Error("Канал не знайдено");
+      }
+      
+      // Імітуємо час генерації
+      const generationTime = Math.random() * 3000 + 2000;
+      
+      setTimeout(() => {
+        const post: Post = {
+          id: uuidv4(),
+          channelId: channelId,
+          text: `Згенерований пост для каналу "${channel.name}" використовуючи промпт: "${channel.promptTemplate.substring(0, 50)}..."`,
+          imageUrl: "https://via.placeholder.com/500",
+          status: 'generated',
+          createdAt: new Date().toISOString(),
+        };
+        
+        resolve(post);
+      }, generationTime);
+    });
+  };
+
+  // Функція для імітації публікації поста
+  const publishPost = (post: Post): Promise<Post> => {
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        const publishedPost: Post = {
+          ...post,
+          status: 'published',
+          publishedAt: new Date().toISOString(),
+        };
+        
+        resolve(publishedPost);
+      }, 1500);
+    });
+  };
+
+  // Генерація та публікація постів для всіх активних каналів
+  const processChannels = async () => {
+    const activeChannels = channels.filter(channel => channel.isActive);
+    if (activeChannels.length === 0) {
+      stopBot();
+      return;
+    }
+    
+    // Оновлюємо статус бота
+    updateBotStatus({
+      currentAction: 'Початок генерації постів',
+    });
+    
+    for (const channel of activeChannels) {
+      try {
+        // Оновлюємо статус каналу
+        updateBotStatus({
+          channelStatuses: botStatus.channelStatuses.map(status => 
+            status.channelId === channel.id 
+              ? { ...status, status: 'Генерація посту' }
+              : status
+          ),
+          currentAction: `Генерація посту для каналу "${channel.name}"`,
+        });
+        
+        // Генеруємо пост
+        const post = await generatePostForChannel(channel.id);
+        
+        // Оновлюємо список постів каналу
+        setChannels(prev => prev.map(c => 
+          c.id === channel.id 
+            ? { ...c, lastPosts: [...c.lastPosts, post] }
+            : c
+        ));
+        
+        // Оновлюємо статистику
+        setStatistics(prev => ({
+          ...prev,
+          totalPostsGenerated: prev.totalPostsGenerated + 1,
+          postsByChannel: prev.postsByChannel.map(stats => 
+            stats.channelId === channel.id 
+              ? { ...stats, generated: stats.generated + 1 }
+              : stats
+          ),
+        }));
+        
+        // Оновлюємо статус каналу
+        updateBotStatus({
+          channelStatuses: botStatus.channelStatuses.map(status => 
+            status.channelId === channel.id 
+              ? { ...status, status: 'Публікація посту' }
+              : status
+          ),
+          currentAction: `Публікація посту для каналу "${channel.name}"`,
+        });
+        
+        // Публікуємо пост
+        const publishedPost = await publishPost(post);
+        
+        // Оновлюємо список постів каналу
+        setChannels(prev => prev.map(c => 
+          c.id === channel.id 
+            ? { 
+                ...c, 
+                lastPosts: c.lastPosts.map(p => 
+                  p.id === publishedPost.id ? publishedPost : p
+                ) 
+              }
+            : c
+        ));
+        
+        // Оновлюємо статистику
+        setStatistics(prev => ({
+          ...prev,
+          totalPostsPublished: prev.totalPostsPublished + 1,
+          postsByChannel: prev.postsByChannel.map(stats => 
+            stats.channelId === channel.id 
+              ? { ...stats, published: stats.published + 1 }
+              : stats
+          ),
+        }));
+        
+        // Визначаємо час наступного посту
+        const now = new Date();
+        const nextPostTime = new Date();
+        nextPostTime.setHours(nextPostTime.getHours() + (24 / channel.postsPerDay));
+        
+        // Оновлюємо статус каналу
+        updateBotStatus({
+          channelStatuses: botStatus.channelStatuses.map(status => 
+            status.channelId === channel.id 
+              ? { 
+                  ...status, 
+                  status: 'Очікування наступного посту', 
+                  nextPostTime: nextPostTime.toISOString() 
+                }
+              : status
+          ),
+          currentAction: `Пост для каналу "${channel.name}" успішно опубліковано`,
+        });
+        
+        toast({ 
+          title: "Пост опубліковано", 
+          description: `Пост для каналу "${channel.name}" успішно опубліковано` 
+        });
+        
+      } catch (error) {
+        console.error(`Помилка для каналу ${channel.name}:`, error);
+        updateBotStatus({
+          channelStatuses: botStatus.channelStatuses.map(status => 
+            status.channelId === channel.id 
+              ? { ...status, status: 'Помилка генерації' }
+              : status
+          ),
+          currentAction: `Помилка для каналу "${channel.name}"`,
+        });
+        
+        toast({ 
+          title: "Помилка", 
+          description: `Виникла помилка для каналу "${channel.name}"`, 
+          variant: "destructive" 
+        });
+      }
+    }
+    
+    // Зупиняємо бота після завершення всіх каналів
+    setIsGenerating(false);
+    
+    // Зберігаємо загальну статистику за день
+    const today = new Date().toISOString().split('T')[0];
+    setStatistics(prev => {
+      const todayStats = prev.dailyStats.find(stat => stat.date === today);
+      
+      if (todayStats) {
+        return {
+          ...prev,
+          dailyStats: prev.dailyStats.map(stat => 
+            stat.date === today 
+              ? { 
+                  ...stat, 
+                  generated: stat.generated + activeChannels.length, 
+                  published: stat.published + activeChannels.length 
+                }
+              : stat
+          ),
+        };
+      } else {
+        return {
+          ...prev,
+          dailyStats: [
+            ...prev.dailyStats, 
+            {
+              date: today,
+              generated: activeChannels.length,
+              published: activeChannels.length,
+            }
+          ],
+        };
+      }
+    });
+  };
+
   const startBot = () => {
-    if (channels.length === 0) {
+    const activeChannels = channels.filter(channel => channel.isActive);
+    
+    if (activeChannels.length === 0) {
       toast({ 
         title: "Помилка", 
-        description: "Додайте хоча б один канал перед запуском бота", 
+        description: "Активуйте хоча б один канал перед запуском бота", 
         variant: "destructive" 
       });
       return;
@@ -150,18 +355,17 @@ export const ChannelProvider = ({ children }: ChannelProviderProps) => {
       currentAction: 'Запуск процесу генерації постів',
       channelStatuses: channels.map(channel => ({
         channelId: channel.id,
-        status: 'Очікує генерації',
+        status: channel.isActive ? 'Очікує генерації' : 'Неактивний',
       })),
     });
 
-    // В реальному проекті тут було б налаштування фактичної роботи бота з Telegram API
-    // Для демонстрації використовуємо setTimeout
-    setTimeout(() => {
-      toast({ 
-        title: "Бота запущено", 
-        description: "Бот розпочав генерацію контенту" 
-      });
-    }, 1000);
+    toast({ 
+      title: "Бота запущено", 
+      description: "Бот розпочав генерацію контенту" 
+    });
+    
+    // Запускаємо процес генерації та публікації постів
+    processChannels();
   };
 
   const stopBot = () => {

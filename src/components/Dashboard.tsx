@@ -7,6 +7,7 @@ import PromptSettings from './PromptSettings';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card } from '@/components/ui/card';
 import ChannelsList from './ChannelsList';
+import Posts from './Posts';
 
 const Dashboard = () => {
   return (
@@ -21,9 +22,10 @@ const Dashboard = () => {
       </div>
 
       <Tabs defaultValue="channels" className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="channels">Канали</TabsTrigger>
           <TabsTrigger value="prompts">Промпти</TabsTrigger>
+          <TabsTrigger value="posts">Пости</TabsTrigger>
           <TabsTrigger value="statistics">Статистика</TabsTrigger>
         </TabsList>
         <TabsContent value="channels">
@@ -31,6 +33,9 @@ const Dashboard = () => {
         </TabsContent>
         <TabsContent value="prompts">
           <PromptSettings />
+        </TabsContent>
+        <TabsContent value="posts">
+          <Posts />
         </TabsContent>
         <TabsContent value="statistics">
           <Statistics />

@@ -1,0 +1,128 @@
+
+import React, { useState } from 'react';
+import { useChannelContext } from '@/context/ChannelContext';
+import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { format } from 'date-fns';
+import { uk } from 'date-fns/locale';
+import { Post } from '@/types';
+
+const Posts = () => {
+  const { channels } = useChannelContext();
+  const [selectedChannelId, setSelectedChannelId] = useState<string | null>(null);
+  
+  // Get all posts from all channels or filter by selected channel
+  const allPosts = channels.flatMap(channel => 
+    channel.lastPosts.map(post => ({
+      ...post,
+      channelName: channel.name
+    }))
+  ).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  
+  const filteredPosts = selectedChannelId 
+    ? allPosts.filter(post => post.channelId === selectedChannelId)
+    : allPosts;
+
+  const formatDate = (dateString: string) => {
+    try {
+      return format(new Date(dateString), 'dd MMMM yyyy, HH:mm:ss', { locale: uk });
+    } catch (e) {
+      return 'Невідома дата';
+    }
+  };
+
+  const getStatusBadgeColor = (status: string) => {
+    switch (status) {
+      case 'pending': return 'bg-yellow-500';
+      case 'generated': return 'bg-blue-500';
+      case 'published': return 'bg-green-500';
+      case 'failed': return 'bg-red-500';
+      default: return '';
+    }
+  };
+
+  const postStatusText = (status: string) => {
+    switch (status) {
+      case 'pending': return 'Очікує';
+      case 'generated': return 'Згенеровано';
+      case 'published': return 'Опубліковано';
+      case 'failed': return 'Помилка';
+      default: return status;
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <div className="flex justify-between items-center">
+          <CardTitle>Згенеровані пости</CardTitle>
+          <div className="flex gap-2">
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => setSelectedChannelId(null)}
+              className={!selectedChannelId ? "bg-primary text-primary-foreground" : ""}
+            >
+              Всі канали
+            </Button>
+            {channels.map(channel => (
+              <Button 
+                key={channel.id} 
+                variant="outline" 
+                size="sm" 
+                onClick={() => setSelectedChannelId(channel.id)}
+                className={selectedChannelId === channel.id ? "bg-primary text-primary-foreground" : ""}
+              >
+                {channel.name}
+              </Button>
+            ))}
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {filteredPosts.length > 0 ? (
+          <div className="space-y-4">
+            {filteredPosts.map((post: Post & { channelName?: string }) => (
+              <Card key={post.id} className="overflow-hidden">
+                <CardHeader className="p-4 pb-2">
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <h3 className="font-medium">{post.channelName || 'Канал'}</h3>
+                      <p className="text-xs text-muted-foreground">{formatDate(post.createdAt)}</p>
+                    </div>
+                    <Badge className={getStatusBadgeColor(post.status)}>
+                      {postStatusText(post.status)}
+                    </Badge>
+                  </div>
+                </CardHeader>
+                <CardContent className="p-4 pt-2">
+                  <div className="whitespace-pre-wrap text-sm">{post.text}</div>
+                  {post.imageUrl && (
+                    <div className="mt-2">
+                      <img 
+                        src={post.imageUrl} 
+                        alt="Зображення для поста" 
+                        className="rounded-md max-h-48 object-cover"
+                      />
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-10">
+            <p className="text-muted-foreground">Ще немає згенерованих постів</p>
+            <p className="text-sm text-muted-foreground mt-1">
+              Постів з'являться тут після їх генерації ботом
+            </p>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+};
+
+export default Posts;
