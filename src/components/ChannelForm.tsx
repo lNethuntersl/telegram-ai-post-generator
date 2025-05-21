@@ -24,7 +24,13 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
-import { X, Plus } from "lucide-react";
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from "@/components/ui/hover-card"
+import { X, Plus, Info } from "lucide-react";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface ChannelFormProps {
   editChannel?: Channel;
@@ -117,7 +123,25 @@ const ChannelForm = ({ editChannel, onClose, isEdit = false }: ChannelFormProps)
       </div>
       
       <div className="space-y-2">
-        <Label htmlFor="chatId">Chat ID</Label>
+        <div className="flex items-center justify-between">
+          <Label htmlFor="chatId">Chat ID</Label>
+          <HoverCard>
+            <HoverCardTrigger asChild>
+              <Button variant="ghost" size="sm" className="h-5 w-5 p-0">
+                <Info className="h-4 w-4" />
+              </Button>
+            </HoverCardTrigger>
+            <HoverCardContent className="w-80">
+              <div className="space-y-2">
+                <h4 className="font-medium">Chat ID - ідентифікатор чату</h4>
+                <p className="text-sm text-muted-foreground">
+                  Унікальний ідентифікатор чату або каналу в Telegram, куди бот надсилатиме повідомлення. 
+                  Можна отримати через @getidsbot в Telegram.
+                </p>
+              </div>
+            </HoverCardContent>
+          </HoverCard>
+        </div>
         <Input
           id="chatId"
           value={chatId}
@@ -128,7 +152,25 @@ const ChannelForm = ({ editChannel, onClose, isEdit = false }: ChannelFormProps)
       </div>
       
       <div className="space-y-2">
-        <Label htmlFor="userId">User ID</Label>
+        <div className="flex items-center justify-between">
+          <Label htmlFor="userId">User ID</Label>
+          <HoverCard>
+            <HoverCardTrigger asChild>
+              <Button variant="ghost" size="sm" className="h-5 w-5 p-0">
+                <Info className="h-4 w-4" />
+              </Button>
+            </HoverCardTrigger>
+            <HoverCardContent className="w-80">
+              <div className="space-y-2">
+                <h4 className="font-medium">User ID - ідентифікатор користувача</h4>
+                <p className="text-sm text-muted-foreground">
+                  Унікальний ідентифікатор вашого облікового запису в Telegram. 
+                  Можна отримати через @getidsbot в Telegram.
+                </p>
+              </div>
+            </HoverCardContent>
+          </HoverCard>
+        </div>
         <Input
           id="userId"
           value={userId}
@@ -164,7 +206,24 @@ const ChannelForm = ({ editChannel, onClose, isEdit = false }: ChannelFormProps)
       </div>
       
       <div className="space-y-2">
-        <Label htmlFor="grokApiKey">Grok API ключ (опціонально)</Label>
+        <div className="flex items-center justify-between">
+          <Label htmlFor="grokApiKey">Grok API ключ (опціонально)</Label>
+          <HoverCard>
+            <HoverCardTrigger asChild>
+              <Button variant="ghost" size="sm" className="h-5 w-5 p-0">
+                <Info className="h-4 w-4" />
+              </Button>
+            </HoverCardTrigger>
+            <HoverCardContent className="w-80">
+              <div className="space-y-2">
+                <h4 className="font-medium">Grok API ключ</h4>
+                <p className="text-sm text-muted-foreground">
+                  Опціональний API ключ для використання моделі Grok замість стандартного ШІ сервісу.
+                </p>
+              </div>
+            </HoverCardContent>
+          </HoverCard>
+        </div>
         <Input
           id="grokApiKey"
           value={grokApiKey}
@@ -198,9 +257,18 @@ const ChannelForm = ({ editChannel, onClose, isEdit = false }: ChannelFormProps)
             Додайте інформацію про новий телеграм канал для автоматичної генерації контенту
           </SheetDescription>
         </SheetHeader>
-        <div className="py-4">
-          {formContent}
-        </div>
+        <ScrollArea className="h-[calc(100vh-180px)] pr-4">
+          <div className="py-4">
+            {formContent}
+          </div>
+        </ScrollArea>
+        <SheetFooter className="mt-2">
+          <SheetClose asChild>
+            <Button variant="outline" type="button">
+              Скасувати
+            </Button>
+          </SheetClose>
+        </SheetFooter>
       </SheetContent>
     </Sheet>
   );
