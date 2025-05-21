@@ -89,7 +89,7 @@ const PromptSettings = () => {
               <div className="flex justify-between items-center">
                 <Label htmlFor="prompt-template">Шаблон промпту</Label>
                 <div className="text-xs text-muted-foreground">
-                  Використовуйте {{тема}}, щоб позначити місце для вставки змінних
+                  Використовуйте {"{{тема}}"} для позначення місця для вставки змінних
                 </div>
               </div>
               <Textarea

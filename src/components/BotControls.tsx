@@ -3,7 +3,7 @@ import React from 'react';
 import { useChannelContext } from '@/context/ChannelContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Play, Stop, RefreshCw } from 'lucide-react';
+import { Play, Square, RefreshCw } from 'lucide-react';
 
 const BotControls = () => {
   const { startBot, stopBot, botStatus, channels, isGenerating } = useChannelContext();
@@ -58,7 +58,7 @@ const BotControls = () => {
           onClick={stopBot}
           disabled={!botStatus.isRunning}
         >
-          <Stop className="mr-2 h-4 w-4" />
+          <Square className="mr-2 h-4 w-4" />
           Зупинити бот
         </Button>
       </CardFooter>
