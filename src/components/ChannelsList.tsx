@@ -24,14 +24,18 @@ import {
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import ChannelForm from './ChannelForm';
-import { Edit, Trash2, Settings } from 'lucide-react';
+import ScheduleSettings from './ScheduleSettings';
+import { Edit, Trash2, Settings, Play, Calendar } from 'lucide-react';
+import { useToast } from '@/components/ui/use-toast';
 
 const ChannelsList = () => {
-  const { channels, deleteChannel, updateChannel } = useChannelContext();
+  const { channels, deleteChannel, updateChannel, generateTestPost } = useChannelContext();
   const [editingChannel, setEditingChannel] = useState<Channel | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [channelToDelete, setChannelToDelete] = useState<Channel | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [isGeneratingTestPost, setIsGeneratingTestPost] = useState<string | null>(null);
+  const { toast } = useToast();
 
   const handleDeleteClick = (channel: Channel) => {
     setChannelToDelete(channel);
@@ -55,6 +59,29 @@ const ChannelsList = () => {
       ...channel,
       isActive
     });
+  };
+
+  const handleScheduleUpdate = (updatedChannel: Channel) => {
+    updateChannel(updatedChannel);
+  };
+
+  const handleTestPost = async (channel: Channel) => {
+    setIsGeneratingTestPost(channel.id);
+    try {
+      await generateTestPost(channel.id);
+      toast({
+        title: "Тестовий пост",
+        description: `Тестовий пост для каналу "${channel.name}" згенеровано та надіслано`,
+      });
+    } catch (error) {
+      toast({
+        title: "Помилка",
+        description: `Не вдалося згенерувати тестовий пост: ${error instanceof Error ? error.message : String(error)}`,
+        variant: "destructive",
+      });
+    } finally {
+      setIsGeneratingTestPost(null);
+    }
   };
 
   if (channels.length === 0) {
@@ -104,25 +131,60 @@ const ChannelsList = () => {
                   <p className="text-muted-foreground mb-1">Промпт:</p>
                   <p className="line-clamp-2">{channel.promptTemplate}</p>
                 </div>
+                
+                {/* Display schedule */}
+                <div className="text-sm">
+                  <div className="flex items-center gap-1 text-muted-foreground mb-1">
+                    <Calendar size={14} />
+                    <span>Розклад:</span>
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    {channel.schedule && channel.schedule.length > 0 ? (
+                      channel.schedule.map((time, idx) => (
+                        <span key={idx} className="bg-muted px-2 py-0.5 rounded-md text-xs">
+                          {time.hour.toString().padStart(2, '0')}:{time.minute.toString().padStart(2, '0')}
+                        </span>
+                      ))
+                    ) : (
+                      <span className="text-muted-foreground text-xs">Не налаштовано</span>
+                    )}
+                  </div>
+                </div>
               </div>
             </CardContent>
-            <CardFooter className="flex justify-between pt-2">
-              <div className="flex items-center space-x-2">
-                <Switch 
-                  checked={channel.isActive} 
-                  onCheckedChange={(checked) => handleStatusToggle(channel, checked)}
-                  id={`status-${channel.id}`}
-                />
-                <Label htmlFor={`status-${channel.id}`}>
-                  {channel.isActive ? 'Активний' : 'Вимкнено'}
-                </Label>
+            <CardFooter className="flex flex-col gap-2 pt-2">
+              <div className="flex justify-between w-full">
+                <div className="flex items-center space-x-2">
+                  <Switch 
+                    checked={channel.isActive} 
+                    onCheckedChange={(checked) => handleStatusToggle(channel, checked)}
+                    id={`status-${channel.id}`}
+                  />
+                  <Label htmlFor={`status-${channel.id}`}>
+                    {channel.isActive ? 'Активний' : 'Вимкнено'}
+                  </Label>
+                </div>
+                <div className="flex gap-2">
+                  <Button variant="outline" size="icon" onClick={() => handleEditClick(channel)}>
+                    <Edit size={16} />
+                  </Button>
+                  <Button variant="outline" size="icon" onClick={() => handleDeleteClick(channel)}>
+                    <Trash2 size={16} className="text-destructive" />
+                  </Button>
+                </div>
               </div>
-              <div className="flex gap-2">
-                <Button variant="outline" size="icon" onClick={() => handleEditClick(channel)}>
-                  <Edit size={16} />
-                </Button>
-                <Button variant="outline" size="icon" onClick={() => handleDeleteClick(channel)}>
-                  <Trash2 size={16} className="text-destructive" />
+              
+              <div className="flex w-full justify-between gap-2 mt-2">
+                <ScheduleSettings channel={channel} onUpdate={handleScheduleUpdate} />
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  className="flex items-center gap-1"
+                  onClick={() => handleTestPost(channel)}
+                  disabled={isGeneratingTestPost === channel.id}
+                >
+                  <Play size={16} />
+                  {isGeneratingTestPost === channel.id ? 'Генерація...' : 'Тестовий пост'}
                 </Button>
               </div>
             </CardFooter>

@@ -10,6 +10,12 @@ export interface Channel {
   grokApiKey?: string;
   lastPosts: Post[];
   isActive: boolean;
+  schedule: ScheduleTime[]; // Array of scheduled posting times
+}
+
+export interface ScheduleTime {
+  hour: number;
+  minute: number;
 }
 
 export interface Post {
