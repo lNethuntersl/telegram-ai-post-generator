@@ -31,7 +31,7 @@ const BotControls = () => {
         <div className="space-y-2">
           <div className="flex justify-between text-sm">
             <span className="text-muted-foreground">Статус бота:</span>
-            <span className="font-medium">
+            <span className={`font-medium ${botStatus.isRunning ? 'text-green-600' : 'text-red-600'}`}>
               {botStatus.isRunning ? 'Активний' : 'Зупинений'}
             </span>
           </div>
@@ -39,6 +39,12 @@ const BotControls = () => {
             <span className="text-muted-foreground">Поточна дія:</span>
             <span className="font-medium">{botStatus.currentAction}</span>
           </div>
+          
+          {isGenerating && (
+            <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded text-sm text-blue-700">
+              Бот обробляє запити... Це може зайняти деякий час.
+            </div>
+          )}
         </div>
       </CardContent>
       <CardFooter className="flex justify-between gap-4">
@@ -46,7 +52,7 @@ const BotControls = () => {
           variant={botStatus.isRunning ? "outline" : "default"}
           className={`w-full ${botStatus.isRunning ? "" : "bg-green-500 hover:bg-green-600"}`}
           onClick={startBot}
-          disabled={botStatus.isRunning || activeChannelsCount === 0}
+          disabled={botStatus.isRunning || activeChannelsCount === 0 || isGenerating}
         >
           <Play className="mr-2 h-4 w-4" />
           Запустити бот

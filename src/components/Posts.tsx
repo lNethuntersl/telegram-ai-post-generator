@@ -10,6 +10,7 @@ import { Post } from '@/types';
 import { RefreshCw, HistoryIcon } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { useToast } from "@/components/ui/use-toast";
 
 const Posts = () => {
   const { channels, botLogs } = useChannelContext();
@@ -17,6 +18,7 @@ const Posts = () => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastRefreshed, setLastRefreshed] = useState(new Date());
   const [showLogs, setShowLogs] = useState(false);
+  const { toast } = useToast();
   
   // Get all posts from all channels or filter by selected channel
   const allPosts = channels.flatMap(channel => 
@@ -47,12 +49,21 @@ const Posts = () => {
     return () => clearInterval(interval);
   }, []);
 
+  useEffect(() => {
+    // Log post counts every time they change
+    console.log(`Posts available: ${allPosts.length}, Filtered: ${filteredPosts.length}`);
+  }, [allPosts.length, filteredPosts.length]);
+
   const refreshPosts = () => {
     setIsRefreshing(true);
     // Simply updating the refresh timestamp will trigger a re-render
     setTimeout(() => {
       setLastRefreshed(new Date());
       setIsRefreshing(false);
+      toast({
+        title: "Пости оновлено",
+        description: `Всього постів: ${allPosts.length}`
+      });
     }, 500);
   };
 
@@ -100,7 +111,7 @@ const Posts = () => {
               onClick={() => setShowLogs(!showLogs)}
               className={showLogs ? "bg-primary text-primary-foreground" : ""}
             >
-              Показати логи
+              {showLogs ? "Сховати логи" : "Показати логи"}
             </Button>
           </div>
           <div className="flex gap-2">
@@ -132,10 +143,10 @@ const Posts = () => {
             <AccordionItem value="logs">
               <AccordionTrigger>Системні логи операцій</AccordionTrigger>
               <AccordionContent>
-                <ScrollArea className="h-[200px] border rounded-md p-4 bg-gray-50">
+                <ScrollArea className="h-[300px] border rounded-md p-4 bg-gray-50">
                   {botLogs.length > 0 ? (
                     botLogs.map((log, index) => (
-                      <div key={index} className={`mb-1 text-sm ${log.type === 'error' ? 'text-red-500' : log.type === 'success' ? 'text-green-500' : 'text-gray-700'}`}>
+                      <div key={index} className={`mb-1 text-sm ${log.type === 'error' ? 'text-red-500' : log.type === 'success' ? 'text-green-500' : log.type === 'warning' ? 'text-amber-600' : 'text-gray-700'}`}>
                         <span className="font-mono text-xs">[{formatDate(log.timestamp)}]</span> {log.message}
                       </div>
                     ))
@@ -156,10 +167,17 @@ const Posts = () => {
                   <div className="flex justify-between items-center">
                     <div>
                       <h3 className="font-medium">{post.channelName || 'Канал'}</h3>
-                      <p className="text-xs text-muted-foreground">{formatDate(post.createdAt)}</p>
+                      <p className="text-xs text-muted-foreground">
+                        Створено: {formatDate(post.createdAt)}
+                      </p>
                       {post.publishedAt && (
                         <p className="text-xs text-green-600">
                           Опубліковано: {formatDate(post.publishedAt)}
+                        </p>
+                      )}
+                      {post.telegramPostId && (
+                        <p className="text-xs text-blue-600">
+                          Telegram ID: {post.telegramPostId}
                         </p>
                       )}
                     </div>

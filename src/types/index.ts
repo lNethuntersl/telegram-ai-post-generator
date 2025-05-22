@@ -21,6 +21,7 @@ export interface Post {
   createdAt: string;
   publishedAt?: string;
   error?: string;
+  telegramPostId?: string; // ID returned by Telegram API
 }
 
 export interface BotStatus {
