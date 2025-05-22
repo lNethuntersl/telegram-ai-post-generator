@@ -26,8 +26,29 @@ export function formatDateTime(isoString: string): string {
   }
 }
 
-// Function to send message to Telegram
-export async function sendTelegramMessage(botToken: string, chatId: string, text: string, imageUrl?: string): Promise<any> {
+// Function to validate Telegram credentials
+export function validateTelegramCredentials(botToken: string, chatId: string): boolean {
+  if (!botToken || !chatId) return false;
+  
+  // Basic validation for bot token (should be in format 123456789:ABC-DEF1234ghIkl-zyx57W2v1u123ew11)
+  const botTokenPattern = /^\d+:[A-Za-z0-9_-]+$/;
+  if (!botTokenPattern.test(botToken)) return false;
+  
+  // Chat ID can be a number (group/channel ID) or username (@username)
+  const chatIdPattern = /^-?\d+$|^@[A-Za-z0-9_]+$/;
+  if (!chatIdPattern.test(chatId)) return false;
+  
+  return true;
+}
+
+// Improved function to send message to Telegram with better error handling
+export async function sendTelegramMessage(botToken: string, chatId: string, text: string): Promise<any> {
+  if (!validateTelegramCredentials(botToken, chatId)) {
+    throw new Error('Invalid bot token or chat ID format');
+  }
+  
+  console.log(`Sending message to Telegram with bot token ${botToken.substring(0, 5)}... and chat ID ${chatId}`);
+  
   const apiUrl = `https://api.telegram.org/bot${botToken}/sendMessage`;
   
   const payload = {
@@ -37,6 +58,8 @@ export async function sendTelegramMessage(botToken: string, chatId: string, text
   };
 
   try {
+    console.log('Making API request to Telegram:', apiUrl);
+    
     const response = await fetch(apiUrl, {
       method: 'POST',
       headers: {
@@ -44,13 +67,23 @@ export async function sendTelegramMessage(botToken: string, chatId: string, text
       },
       body: JSON.stringify(payload),
     });
-
+    
+    console.log('Telegram API response status:', response.status);
+    
     if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(`Telegram API Error: ${errorData.description || 'Unknown error'}`);
+      const errorData = await response.text();
+      console.error('Telegram API error response:', errorData);
+      
+      try {
+        const parsedError = JSON.parse(errorData);
+        throw new Error(`Telegram API Error [${response.status}]: ${parsedError.description || 'Unknown error'}`);
+      } catch (e) {
+        throw new Error(`Telegram API Error [${response.status}]: ${errorData || 'Unknown error'}`);
+      }
     }
 
     const data = await response.json();
+    console.log('Telegram API success response:', data);
     return data;
   } catch (error) {
     console.error('Error sending Telegram message:', error);
@@ -58,8 +91,14 @@ export async function sendTelegramMessage(botToken: string, chatId: string, text
   }
 }
 
-// Function to send photo with caption to Telegram
+// Improved function to send photo with caption to Telegram
 export async function sendTelegramPhoto(botToken: string, chatId: string, imageUrl: string, caption: string): Promise<any> {
+  if (!validateTelegramCredentials(botToken, chatId)) {
+    throw new Error('Invalid bot token or chat ID format');
+  }
+  
+  console.log(`Sending photo to Telegram with bot token ${botToken.substring(0, 5)}... and chat ID ${chatId}`);
+  
   const apiUrl = `https://api.telegram.org/bot${botToken}/sendPhoto`;
   
   const payload = {
@@ -70,6 +109,9 @@ export async function sendTelegramPhoto(botToken: string, chatId: string, imageU
   };
 
   try {
+    console.log('Making photo API request to Telegram:', apiUrl);
+    console.log('Using photo URL:', imageUrl);
+    
     const response = await fetch(apiUrl, {
       method: 'POST',
       headers: {
@@ -77,13 +119,23 @@ export async function sendTelegramPhoto(botToken: string, chatId: string, imageU
       },
       body: JSON.stringify(payload),
     });
-
+    
+    console.log('Telegram photo API response status:', response.status);
+    
     if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(`Telegram API Error: ${errorData.description || 'Unknown error'}`);
+      const errorData = await response.text();
+      console.error('Telegram API error response for photo:', errorData);
+      
+      try {
+        const parsedError = JSON.parse(errorData);
+        throw new Error(`Telegram API Error [${response.status}]: ${parsedError.description || 'Unknown error'}`);
+      } catch (e) {
+        throw new Error(`Telegram API Error [${response.status}]: ${errorData || 'Unknown error'}`);
+      }
     }
 
     const data = await response.json();
+    console.log('Telegram photo API success response:', data);
     return data;
   } catch (error) {
     console.error('Error sending Telegram photo:', error);

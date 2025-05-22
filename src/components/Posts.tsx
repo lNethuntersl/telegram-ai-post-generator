@@ -7,11 +7,12 @@ import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
 import { uk } from 'date-fns/locale';
 import { Post } from '@/types';
-import { RefreshCw } from 'lucide-react';
+import { RefreshCw, AlertTriangle } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { useToast } from "@/components/ui/use-toast";
 import { formatDateTime } from '@/lib/utils';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 const Posts = () => {
   const { channels, botLogs } = useChannelContext();
@@ -152,10 +153,25 @@ const Posts = () => {
           </Accordion>
         )}
         
+        {/* Display a help alert if there are failed posts */}
+        {filteredPosts.some(p => p.status === 'failed') && (
+          <Alert variant="destructive" className="mb-4">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>Виявлено помилки публікації</AlertTitle>
+            <AlertDescription>
+              Перевірте правильність та формат Bot Token і Chat ID в налаштуваннях каналів.
+              <ul className="list-disc pl-5 mt-2 text-sm">
+                <li>Bot Token має формат: 123456789:ABC-DEF1234ghIkl-zyx57W2v1u123ew11</li>
+                <li>Chat ID має бути числом (наприклад -1001234567890) або назвою каналу з @ (наприклад @mychannel)</li>
+              </ul>
+            </AlertDescription>
+          </Alert>
+        )}
+        
         {filteredPosts.length > 0 ? (
           <div className="space-y-4">
             {filteredPosts.map((post: Post & { channelName?: string }) => (
-              <Card key={post.id} className="overflow-hidden">
+              <Card key={post.id} className={`overflow-hidden ${post.status === 'failed' ? 'border-red-300' : ''}`}>
                 <CardHeader className="p-4 pb-2">
                   <div className="flex justify-between items-center">
                     <div>
@@ -192,7 +208,8 @@ const Posts = () => {
                   )}
                   {post.error && (
                     <div className="mt-2 text-sm text-red-500 p-2 border border-red-200 bg-red-50 rounded">
-                      Помилка: {post.error}
+                      <p className="font-medium mb-1">Помилка:</p>
+                      <p className="font-mono text-xs">{post.error}</p>
                     </div>
                   )}
                 </CardContent>

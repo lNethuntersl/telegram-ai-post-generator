@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import { v4 as uuidv4 } from 'uuid';
 import { Channel, Post, BotStatus, Statistics, BotLog, ScheduleTime } from '../types';
 import { useToast } from '@/components/ui/use-toast';
-import { sendTelegramMessage, sendTelegramPhoto } from '@/lib/utils';
+import { sendTelegramMessage, sendTelegramPhoto, validateTelegramCredentials } from '@/lib/utils';
 
 interface ChannelContextProps {
   channels: Channel[];
@@ -326,6 +326,13 @@ export const ChannelProvider = ({ children }: ChannelProviderProps) => {
       throw new Error(errorMessage);
     }
     
+    // Check if channel has valid credentials before proceeding
+    if (!validateTelegramCredentials(channel.botToken, channel.chatId)) {
+      const errorMessage = `Канал "${channel.name}" має невірні дані для Telegram: перевірте Bot Token та Chat ID`;
+      addLog(errorMessage, 'error');
+      throw new Error(errorMessage);
+    }
+    
     setIsGenerating(true);
     addLog(`Початок генерації тестового посту для каналу "${channel.name}"`, 'info');
     
@@ -359,34 +366,27 @@ export const ChannelProvider = ({ children }: ChannelProviderProps) => {
         return;
       }
       
+      // Check credentials early
+      if (!validateTelegramCredentials(channel.botToken, channel.chatId)) {
+        const errorMessage = `Канал "${channel.name}" має невірні дані для Telegram: перевірте Bot Token та Chat ID`;
+        addLog(errorMessage, 'error');
+        reject(new Error(errorMessage));
+        return;
+      }
+      
       addLog(`Початок генерації посту для каналу "${channel.name}"`, 'info');
       
       // Імітуємо час генерації
-      const generationTime = Math.random() * 3000 + 2000;
+      const generationTime = Math.random() * 1000 + 500; // Faster generation for testing
       
       setTimeout(() => {
         try {
-          // Симуляція помилки генерації в 5% випадків (зменшуємо з 15%)
-          const isGenerationError = Math.random() < 0.05;
-          
-          if (isGenerationError) {
-            const errorMessage = "Помилка генерації контенту через Grok API (симуляція помилки)";
-            addLog(errorMessage, 'error');
-            reject(new Error(errorMessage));
-            return;
-          }
-          
-          // Перевіряємо наявність Grok API ключа
-          const hasGrokKey = !!channel.grokApiKey;
-          const grokMessage = hasGrokKey 
-            ? `використовуючи Grok API ключ ${channel.grokApiKey?.substring(0, 5)}...`
-            : "без Grok API ключа (буде використано стандартний шаблон)";
-          
+          // Generating real content for testing the API
           const post: Post = {
             id: uuidv4(),
             channelId: channelId,
-            text: `Згенерований пост для каналу "${channel.name}" використовуючи промпт: "${channel.promptTemplate.substring(0, 50)}..." ${grokMessage}`,
-            imageUrl: "https://via.placeholder.com/500",
+            text: `Тестовий пост для каналу "${channel.name}" з часом ${new Date().toLocaleTimeString()}. Це повідомлення відправлено за допомогою Telegram Bot API.`,
+            imageUrl: "https://placehold.co/600x400/png",
             status: 'generated',
             createdAt: new Date().toISOString(),
           };
@@ -415,9 +415,9 @@ export const ChannelProvider = ({ children }: ChannelProviderProps) => {
       
       addLog(`Початок публікації посту для каналу "${channel.name}"`, 'info', { postId: post.id });
       
-      // Перевіряємо наявність токену бота та ID чату
-      if (!channel.botToken || !channel.chatId) {
-        const errorMessage = `Не вказано токен бота або ID чату для каналу "${channel.name}"`;
+      // Перевіряємо наявність та формат токену бота та ID чату
+      if (!validateTelegramCredentials(channel.botToken, channel.chatId)) {
+        const errorMessage = `Невірний формат токену бота або ID чату для каналу "${channel.name}"`;
         addLog(errorMessage, 'error', { postId: post.id });
         
         const failedPost: Post = {
@@ -436,14 +436,23 @@ export const ChannelProvider = ({ children }: ChannelProviderProps) => {
 
         // Make actual API call to Telegram
         let result;
-        if (post.imageUrl && post.imageUrl !== "https://via.placeholder.com/500") {
-          // Send photo with caption
-          result = await sendTelegramPhoto(channel.botToken, channel.chatId, post.imageUrl, post.text);
-          addLog(`Відправлено зображення з текстом до Telegram`, 'info');
-        } else {
-          // Send text only
-          result = await sendTelegramMessage(channel.botToken, channel.chatId, post.text);
-          addLog(`Відправлено текстове повідомлення до Telegram`, 'info');
+        
+        try {
+          if (post.imageUrl && post.imageUrl !== "https://via.placeholder.com/500") {
+            // Send photo with caption
+            result = await sendTelegramPhoto(channel.botToken, channel.chatId, post.imageUrl, post.text);
+            addLog(`Відправлено зображення з текстом до Telegram`, 'info');
+          } else {
+            // Send text only
+            result = await sendTelegramMessage(channel.botToken, channel.chatId, post.text);
+            addLog(`Відправлено текстове повідомлення до Telegram`, 'info');
+          }
+        } catch (apiError) {
+          throw new Error(`Помилка Telegram API: ${apiError instanceof Error ? apiError.message : String(apiError)}`);
+        }
+        
+        if (!result || !result.ok) {
+          throw new Error(`Telegram API повернув помилку: ${result?.description || 'Невідома помилка'}`);
         }
         
         // Publication successful
