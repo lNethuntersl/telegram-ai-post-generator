@@ -7,10 +7,11 @@ import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
 import { uk } from 'date-fns/locale';
 import { Post } from '@/types';
-import { RefreshCw, HistoryIcon } from 'lucide-react';
+import { RefreshCw } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { useToast } from "@/components/ui/use-toast";
+import { formatDateTime } from '@/lib/utils';
 
 const Posts = () => {
   const { channels, botLogs } = useChannelContext();
@@ -31,14 +32,6 @@ const Posts = () => {
   const filteredPosts = selectedChannelId 
     ? allPosts.filter(post => post.channelId === selectedChannelId)
     : allPosts;
-
-  const formatDate = (dateString: string) => {
-    try {
-      return format(new Date(dateString), 'dd MMMM yyyy, HH:mm:ss', { locale: uk });
-    } catch (e) {
-      return 'Невідома дата';
-    }
-  };
 
   // Force refresh state to trigger re-rendering when new posts are generated
   useEffect(() => {
@@ -103,7 +96,7 @@ const Posts = () => {
               <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
             </Button>
             <span className="text-xs text-muted-foreground">
-              Оновлено: {formatDate(lastRefreshed.toISOString())}
+              Оновлено: {formatDateTime(lastRefreshed.toISOString())}
             </span>
             <Button
               variant="outline"
@@ -147,7 +140,7 @@ const Posts = () => {
                   {botLogs.length > 0 ? (
                     botLogs.map((log, index) => (
                       <div key={index} className={`mb-1 text-sm ${log.type === 'error' ? 'text-red-500' : log.type === 'success' ? 'text-green-500' : log.type === 'warning' ? 'text-amber-600' : 'text-gray-700'}`}>
-                        <span className="font-mono text-xs">[{formatDate(log.timestamp)}]</span> {log.message}
+                        <span className="font-mono text-xs">[{formatDateTime(log.timestamp)}]</span> {log.message}
                       </div>
                     ))
                   ) : (
@@ -168,11 +161,11 @@ const Posts = () => {
                     <div>
                       <h3 className="font-medium">{post.channelName || 'Канал'}</h3>
                       <p className="text-xs text-muted-foreground">
-                        Створено: {formatDate(post.createdAt)}
+                        Створено: {formatDateTime(post.createdAt)}
                       </p>
                       {post.publishedAt && (
                         <p className="text-xs text-green-600">
-                          Опубліковано: {formatDate(post.publishedAt)}
+                          Опубліковано: {formatDateTime(post.publishedAt)}
                         </p>
                       )}
                       {post.telegramPostId && (
@@ -188,7 +181,7 @@ const Posts = () => {
                 </CardHeader>
                 <CardContent className="p-4 pt-2">
                   <div className="whitespace-pre-wrap text-sm">{post.text}</div>
-                  {post.imageUrl && (
+                  {post.imageUrl && post.imageUrl !== "https://via.placeholder.com/500" && (
                     <div className="mt-2">
                       <img 
                         src={post.imageUrl} 

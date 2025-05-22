@@ -1,8 +1,8 @@
-
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { Channel, Post, BotStatus, Statistics, BotLog, ScheduleTime } from '../types';
 import { useToast } from '@/components/ui/use-toast';
+import { sendTelegramMessage, sendTelegramPhoto } from '@/lib/utils';
 
 interface ChannelContextProps {
   channels: Channel[];
@@ -402,9 +402,9 @@ export const ChannelProvider = ({ children }: ChannelProviderProps) => {
     });
   };
 
-  // Функція для імітації публікації поста
+  // Updated function to publish posts using real Telegram API
   const publishPost = (post: Post): Promise<Post> => {
-    return new Promise((resolve, reject) => {
+    return new Promise(async (resolve, reject) => {
       const channel = channels.find(c => c.id === post.channelId);
       if (!channel) {
         const errorMessage = "Канал для публікації не знайдено";
@@ -430,57 +430,51 @@ export const ChannelProvider = ({ children }: ChannelProviderProps) => {
         return;
       }
       
-      setTimeout(() => {
-        try {
-          // Імітуємо помилку публікації в 5% випадків (зменшуємо з 20%)
-          const isPublishingError = Math.random() < 0.05;
-          
-          if (isPublishingError) {
-            const errorMessage = `Помилка публікації: неможливо надіслати повідомлення до Telegram (симуляція помилки)`;
-            addLog(errorMessage, 'error', { postId: post.id });
-            
-            const failedPost: Post = {
-              ...post,
-              status: 'failed',
-              error: errorMessage
-            };
-            
-            resolve(failedPost);
-            return;
-          }
-          
-          // Логуємо дані для надсилання
-          addLog(`Підготовка до публікації в Telegram. Бот токен: ${channel.botToken.substring(0, 5)}..., Chat ID: ${channel.chatId}`, 'info');
-          
-          // Публікуємо успішно (симуляція)
-          const publishedPost: Post = {
-            ...post,
-            status: 'published',
-            publishedAt: new Date().toISOString(),
-            telegramPostId: Math.floor(Math.random() * 10000).toString()
-          };
-          
-          addLog(`Пост для каналу "${channel.name}" успішно опубліковано в Telegram`, 'success', { 
-            postId: publishedPost.id,
-            publishedAt: publishedPost.publishedAt,
-            telegramPostId: publishedPost.telegramPostId
-          });
-          
-          resolve(publishedPost);
-          
-        } catch (error) {
-          const errorMessage = `Помилка під час публікації посту: ${error instanceof Error ? error.message : String(error)}`;
-          addLog(errorMessage, 'error', { error, postId: post.id });
-          
-          const failedPost: Post = {
-            ...post,
-            status: 'failed',
-            error: errorMessage
-          };
-          
-          resolve(failedPost);
+      try {
+        // Log token and chat ID info (safely)
+        addLog(`Підготовка до публікації в Telegram. Бот токен: ${channel.botToken.substring(0, 5)}..., Chat ID: ${channel.chatId}`, 'info');
+
+        // Make actual API call to Telegram
+        let result;
+        if (post.imageUrl && post.imageUrl !== "https://via.placeholder.com/500") {
+          // Send photo with caption
+          result = await sendTelegramPhoto(channel.botToken, channel.chatId, post.imageUrl, post.text);
+          addLog(`Відправлено зображення з текстом до Telegram`, 'info');
+        } else {
+          // Send text only
+          result = await sendTelegramMessage(channel.botToken, channel.chatId, post.text);
+          addLog(`Відправлено текстове повідомлення до Telegram`, 'info');
         }
-      }, 1500);
+        
+        // Publication successful
+        const publishedPost: Post = {
+          ...post,
+          status: 'published',
+          publishedAt: new Date().toISOString(),
+          telegramPostId: result.result.message_id.toString()
+        };
+        
+        addLog(`Пост для каналу "${channel.name}" успішно опубліковано в Telegram`, 'success', { 
+          postId: publishedPost.id,
+          publishedAt: publishedPost.publishedAt,
+          telegramPostId: publishedPost.telegramPostId
+        });
+        
+        resolve(publishedPost);
+        
+      } catch (error) {
+        const errorMessage = `Помилка під час публікації посту: ${error instanceof Error ? error.message : String(error)}`;
+        console.error("Telegram API error details:", error);
+        addLog(errorMessage, 'error', { error, postId: post.id });
+        
+        const failedPost: Post = {
+          ...post,
+          status: 'failed',
+          error: errorMessage
+        };
+        
+        resolve(failedPost);
+      }
     });
   };
 
