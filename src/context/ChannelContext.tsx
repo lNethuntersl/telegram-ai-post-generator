@@ -366,8 +366,8 @@ export const ChannelProvider = ({ children }: ChannelProviderProps) => {
       
       setTimeout(() => {
         try {
-          // Симуляція помилки генерації в 15% випадків
-          const isGenerationError = Math.random() < 0.15;
+          // Симуляція помилки генерації в 5% випадків (зменшуємо з 15%)
+          const isGenerationError = Math.random() < 0.05;
           
           if (isGenerationError) {
             const errorMessage = "Помилка генерації контенту через Grok API (симуляція помилки)";
@@ -376,10 +376,16 @@ export const ChannelProvider = ({ children }: ChannelProviderProps) => {
             return;
           }
           
+          // Перевіряємо наявність Grok API ключа
+          const hasGrokKey = !!channel.grokApiKey;
+          const grokMessage = hasGrokKey 
+            ? `використовуючи Grok API ключ ${channel.grokApiKey?.substring(0, 5)}...`
+            : "без Grok API ключа (буде використано стандартний шаблон)";
+          
           const post: Post = {
             id: uuidv4(),
             channelId: channelId,
-            text: `Згенерований пост для каналу "${channel.name}" використовуючи промпт: "${channel.promptTemplate.substring(0, 50)}..."`,
+            text: `Згенерований пост для каналу "${channel.name}" використовуючи промпт: "${channel.promptTemplate.substring(0, 50)}..." ${grokMessage}`,
             imageUrl: "https://via.placeholder.com/500",
             status: 'generated',
             createdAt: new Date().toISOString(),
@@ -409,10 +415,25 @@ export const ChannelProvider = ({ children }: ChannelProviderProps) => {
       
       addLog(`Початок публікації посту для каналу "${channel.name}"`, 'info', { postId: post.id });
       
+      // Перевіряємо наявність токену бота та ID чату
+      if (!channel.botToken || !channel.chatId) {
+        const errorMessage = `Не вказано токен бота або ID чату для каналу "${channel.name}"`;
+        addLog(errorMessage, 'error', { postId: post.id });
+        
+        const failedPost: Post = {
+          ...post,
+          status: 'failed',
+          error: errorMessage
+        };
+        
+        resolve(failedPost);
+        return;
+      }
+      
       setTimeout(() => {
         try {
-          // Імітуємо помилку публікації в 20% випадків для тестування
-          const isPublishingError = Math.random() < 0.2;
+          // Імітуємо помилку публікації в 5% випадків (зменшуємо з 20%)
+          const isPublishingError = Math.random() < 0.05;
           
           if (isPublishingError) {
             const errorMessage = `Помилка публікації: неможливо надіслати повідомлення до Telegram (симуляція помилки)`;
@@ -428,6 +449,9 @@ export const ChannelProvider = ({ children }: ChannelProviderProps) => {
             return;
           }
           
+          // Логуємо дані для надсилання
+          addLog(`Підготовка до публікації в Telegram. Бот токен: ${channel.botToken.substring(0, 5)}..., Chat ID: ${channel.chatId}`, 'info');
+          
           // Публікуємо успішно (симуляція)
           const publishedPost: Post = {
             ...post,
@@ -436,7 +460,7 @@ export const ChannelProvider = ({ children }: ChannelProviderProps) => {
             telegramPostId: Math.floor(Math.random() * 10000).toString()
           };
           
-          addLog(`Пост для каналу "${channel.name}" успішно опубліковано`, 'success', { 
+          addLog(`Пост для каналу "${channel.name}" успішно опубліковано в Telegram`, 'success', { 
             postId: publishedPost.id,
             publishedAt: publishedPost.publishedAt,
             telegramPostId: publishedPost.telegramPostId

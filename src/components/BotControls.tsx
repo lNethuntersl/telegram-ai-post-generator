@@ -3,13 +3,17 @@ import React from 'react';
 import { useChannelContext } from '@/context/ChannelContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Play, Square, RefreshCw, Calendar } from 'lucide-react';
+import { Play, Square, RefreshCw, Calendar, AlertTriangle } from 'lucide-react';
 import { formatTime } from '@/lib/utils';
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 
 const BotControls = () => {
   const { startBot, stopBot, botStatus, channels, isGenerating } = useChannelContext();
 
-  const activeChannelsCount = channels.filter(channel => channel.isActive).length;
+  const activeChannels = channels.filter(channel => channel.isActive);
+  const activeChannelsCount = activeChannels.length;
+  const incompleteChannels = activeChannels.filter(channel => !channel.botToken || !channel.chatId);
+  
   const totalPostsPerDay = channels.reduce((sum, channel) => sum + (channel.isActive ? channel.postsPerDay : 0), 0);
   const totalScheduledTimes = channels
     .filter(channel => channel.isActive)
@@ -75,6 +79,19 @@ const BotControls = () => {
             <div className="text-sm text-muted-foreground">Запланованих постів</div>
           </div>
         </div>
+
+        {incompleteChannels.length > 0 && (
+          <Alert variant="destructive">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>Увага!</AlertTitle>
+            <AlertDescription>
+              {incompleteChannels.length === 1 
+                ? `Канал "${incompleteChannels[0].name}" не має токену бота або ID чату.` 
+                : `${incompleteChannels.length} канали не мають токену бота або ID чату.`
+              } Пости не будуть опубліковані.
+            </AlertDescription>
+          </Alert>
+        )}
 
         <div className="space-y-2">
           <div className="flex justify-between text-sm">
