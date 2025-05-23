@@ -61,7 +61,8 @@ const PromptSettings = () => {
           toast({
             title: "Налаштування збережено",
             description: `Налаштування промпту та Grok API ключ оновлено для каналу "${selectedChannel.name}"`,
-            variant: "success"
+            // Changed from "success" to "default" to match allowed variants
+            variant: "default"
           });
           
           setIsSaving(false);
