@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useChannelContext } from '@/context/ChannelContext';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
@@ -167,7 +168,8 @@ const Posts = () => {
   };
 
   const handlePublishNowClick = async (post: Post) => {
-    if (post.status === 'published') {
+    // Fix the type error by checking the status with the correct string comparison
+    if (post.status === "published") {
       toast({
         title: "Інформація",
         description: "Цей пост вже опубліковано"
@@ -347,13 +349,13 @@ const Posts = () => {
                     >
                       <Trash2 className="h-4 w-4" /> Видалити
                     </Button>
-                    {post.status !== 'published' && (
+                    {post.status !== "published" && (
                       <Button 
                         variant="default" 
                         size="sm" 
                         className="flex gap-1 items-center"
                         onClick={() => handlePublishNowClick(post)}
-                        disabled={isProcessing || post.status === 'published'}
+                        disabled={isProcessing || post.status === "published"}
                       >
                         <Send className="h-4 w-4" /> Опублікувати зараз
                       </Button>
