@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { Channel, Post, BotStatus, Statistics, BotLog, ScheduleTime } from '../types';
@@ -40,6 +39,7 @@ export const ChannelProvider = ({ children }: ChannelProviderProps) => {
   const [channels, setChannels] = useState<Channel[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [botLogs, setBotLogs] = useState<BotLog[]>([]);
+  const [generationTimeouts, setGenerationTimeouts] = useState<Record<string, NodeJS.Timeout>>({});
   const { toast } = useToast();
   
   const [botStatus, setBotStatus] = useState<BotStatus>({
@@ -113,11 +113,17 @@ export const ChannelProvider = ({ children }: ChannelProviderProps) => {
     }
 
     addLog(`Початок генерації та публікації для каналу "${channel.name}"`, 'info');
+    
+    // Встановлюємо таймаут для відслідковування можливого зависання
+    setupGenerationTimeout(channelId);
 
     // First generate the post
     let post: Post;
     try {
       post = await generatePostForChannel(channelId);
+      
+      // Очищаємо таймаут, оскільки генерація успішно завершена
+      clearGenerationTimeout(channelId);
       
       // Add the post to the channel
       setChannels(prev => prev.map(c => 
@@ -137,6 +143,9 @@ export const ChannelProvider = ({ children }: ChannelProviderProps) => {
         ),
       }));
     } catch (error) {
+      // Очищаємо таймаут при помилці
+      clearGenerationTimeout(channelId);
+      
       const errorMessage = `Помилка генерації посту для каналу "${channel.name}": ${error instanceof Error ? error.message : String(error)}`;
       addLog(errorMessage, 'error');
       throw new Error(errorMessage);
@@ -144,7 +153,13 @@ export const ChannelProvider = ({ children }: ChannelProviderProps) => {
 
     // Then publish it
     try {
+      // Встановлюємо новий таймаут для публікації
+      setupGenerationTimeout(channelId);
+      
       const publishedPost = await publishPost(post);
+      
+      // Очищаємо таймаут, оскільки публікація успішно завершена
+      clearGenerationTimeout(channelId);
       
       // Update the post in the channel
       setChannels(prev => prev.map(c => 
@@ -173,6 +188,9 @@ export const ChannelProvider = ({ children }: ChannelProviderProps) => {
       
       return publishedPost;
     } catch (error) {
+      // Очищаємо таймаут при помилці
+      clearGenerationTimeout(channelId);
+      
       const errorMessage = `Помилка публікації посту для каналу "${channel.name}": ${error instanceof Error ? error.message : String(error)}`;
       addLog(errorMessage, 'error');
       
@@ -192,174 +210,65 @@ export const ChannelProvider = ({ children }: ChannelProviderProps) => {
     }
   };
 
-  useEffect(() => {
-    // Завантаження каналів з localStorage при ініціалізації
-    const savedChannels = localStorage.getItem('telegramChannels');
-    if (savedChannels) {
-      try {
-        const parsedChannels = JSON.parse(savedChannels);
-        
-        // Add schedule array if it doesn't exist in saved channels
-        const updatedChannels = parsedChannels.map((channel: any) => ({
-          ...channel,
-          schedule: channel.schedule || []
-        }));
-        
-        setChannels(updatedChannels);
-      } catch (e) {
-        console.error("Error parsing saved channels:", e);
-        setChannels([]);
-      }
-    }
-
-    // Завантаження статистики з localStorage
-    const savedStats = localStorage.getItem('telegramStatistics');
-    if (savedStats) {
-      setStatistics(JSON.parse(savedStats));
-    }
-
-    // Завантаження логів з localStorage
-    const savedLogs = localStorage.getItem('telegramBotLogs');
-    if (savedLogs) {
-      setBotLogs(JSON.parse(savedLogs));
-    }
-  }, []);
-
-  // Збереження каналів в localStorage при зміні
-  useEffect(() => {
-    if (channels.length > 0) {
-      localStorage.setItem('telegramChannels', JSON.stringify(channels));
-    }
-  }, [channels]);
-
-  // Збереження статистики в localStorage при зміні
-  useEffect(() => {
-    localStorage.setItem('telegramStatistics', JSON.stringify(statistics));
-  }, [statistics]);
-
-  // Збереження логів в localStorage при зміні
-  useEffect(() => {
-    localStorage.setItem('telegramBotLogs', JSON.stringify(botLogs.slice(-100))); // Зберігаємо останні 100 логів
-  }, [botLogs]);
-
-  const addLog = (message: string, type: 'info' | 'error' | 'success' | 'warning' = 'info', details?: any) => {
-    const log: BotLog = {
-      timestamp: new Date().toISOString(),
-      message,
-      type,
-      details
-    };
-    
-    console.log(`[${type.toUpperCase()}] ${message}`, details || '');
-    
-    setBotLogs(prev => [...prev, log]);
-  };
-
-  const addChannel = (channelData: Omit<Channel, 'id' | 'lastPosts' | 'isActive' | 'schedule'>) => {
-    const newChannel: Channel = {
-      ...channelData,
-      id: uuidv4(),
-      lastPosts: [],
-      isActive: false,
-      schedule: []
-    };
-    
-    setChannels((prev) => [...prev, newChannel]);
-    
-    // Оновлюємо статистику
-    setStatistics((prev) => ({
-      ...prev,
-      postsByChannel: [...prev.postsByChannel, { channelId: newChannel.id, generated: 0, published: 0 }],
-    }));
-    
-    addLog(`Канал "${channelData.name}" успішно додано`, 'success');
-    
-    toast({ 
-      title: "Канал додано", 
-      description: `Канал "${channelData.name}" успішно додано` 
-    });
-  };
-
-  const updateChannel = (updatedChannel: Channel) => {
-    setChannels((prev) => 
-      prev.map((channel) => 
-        channel.id === updatedChannel.id ? updatedChannel : channel
-      )
-    );
-    
-    addLog(`Канал "${updatedChannel.name}" успішно оновлено`, 'info');
-    
-    toast({ 
-      title: "Канал оновлено", 
-      description: `Канал "${updatedChannel.name}" успішно оновлено` 
-    });
-  };
-
-  const deleteChannel = (id: string) => {
-    const channelName = channels.find(c => c.id === id)?.name || '';
-    setChannels((prev) => prev.filter((channel) => channel.id !== id));
-    
-    // Видаляємо статистику для цього каналу
-    setStatistics((prev) => ({
-      ...prev,
-      postsByChannel: prev.postsByChannel.filter((stats) => stats.channelId !== id),
-    }));
-    
-    addLog(`Канал "${channelName}" успішно видалено`, 'info');
-    
-    toast({ 
-      title: "Канал видалено", 
-      description: `Канал "${channelName}" успішно видалено` 
-    });
-  };
-
-  const updateBotStatus = (status: Partial<BotStatus>) => {
-    setBotStatus((prev) => ({
-      ...prev,
-      ...status,
-      lastUpdate: new Date().toISOString(),
-    }));
-  };
-
-  // Функція для генерації тестового посту
-  const generateTestPost = async (channelId: string): Promise<Post> => {
-    const channel = channels.find(c => c.id === channelId);
-    if (!channel) {
-      const errorMessage = `Канал з ID ${channelId} не знайдено`;
-      addLog(errorMessage, 'error');
-      throw new Error(errorMessage);
+  // Встановлення та очищення таймаутів генерації
+  const setupGenerationTimeout = (channelId: string, timeoutMs = 60000) => {
+    // Очистимо попередній таймаут, якщо такий існує
+    if (generationTimeouts[channelId]) {
+      clearTimeout(generationTimeouts[channelId]);
     }
     
-    // Check if channel has valid credentials before proceeding
-    if (!validateTelegramCredentials(channel.botToken, channel.chatId)) {
-      const errorMessage = `Канал "${channel.name}" має невірні дані для Telegram: перевірте Bot Token та Chat ID`;
-      addLog(errorMessage, 'error');
-      throw new Error(errorMessage);
-    }
-    
-    setIsGenerating(true);
-    addLog(`Початок генерації тестового посту для каналу "${channel.name}"`, 'info');
-    
-    try {
-      // Генеруємо і публікуємо пост
-      const post = await generateAndPublishPost(channelId);
+    // Встановлюємо новий таймаут
+    const timeoutId = setTimeout(() => {
+      // Якщо таймаут спрацював, додаємо лог про можливу помилку
+      addLog(`Можливе зависання під час генерації посту для каналу з ID ${channelId}`, 'warning');
       
-      addLog(`Тестовий пост для каналу "${channel.name}" успішно згенеровано та опубліковано`, 'success', { 
-        postId: post.id,
-        status: post.status
+      // Оновлюємо статуси
+      updateBotStatus({
+        channelStatuses: botStatus.channelStatuses.map(status => 
+          status.channelId === channelId 
+            ? { ...status, status: 'Можливе зависання генерації' }
+            : status
+        ),
       });
       
-      setIsGenerating(false);
-      return post;
-    } catch (error) {
-      setIsGenerating(false);
-      const errorMessage = `Помилка під час тестового посту для каналу "${channel.name}": ${error instanceof Error ? error.message : String(error)}`;
-      addLog(errorMessage, 'error');
-      throw new Error(errorMessage);
+      // Видаляємо цей таймаут зі списку
+      setGenerationTimeouts(prev => {
+        const newTimeouts = { ...prev };
+        delete newTimeouts[channelId];
+        return newTimeouts;
+      });
+      
+    }, timeoutMs);
+    
+    // Зберігаємо таймаут
+    setGenerationTimeouts(prev => ({
+      ...prev,
+      [channelId]: timeoutId
+    }));
+    
+    return timeoutId;
+  };
+  
+  // Очищення таймаута для каналу
+  const clearGenerationTimeout = (channelId: string) => {
+    if (generationTimeouts[channelId]) {
+      clearTimeout(generationTimeouts[channelId]);
+      setGenerationTimeouts(prev => {
+        const newTimeouts = { ...prev };
+        delete newTimeouts[channelId];
+        return newTimeouts;
+      });
     }
   };
 
-  // Функція для імітації генерації поста
+  // Очищаємо всі таймаути при знищенні компоненту
+  useEffect(() => {
+    return () => {
+      Object.values(generationTimeouts).forEach(timeout => clearTimeout(timeout));
+    };
+  }, [generationTimeouts]);
+
+  // Function to generate a post for a specific channel
   const generatePostForChannel = (channelId: string): Promise<Post> => {
     return new Promise((resolve, reject) => {
       const channel = channels.find(c => c.id === channelId);
@@ -683,6 +592,11 @@ export const ChannelProvider = ({ children }: ChannelProviderProps) => {
     setIsGenerating(false);
     addLog("Бота зупинено", 'warning');
     
+    // Очищаємо всі таймаути при зупинці бота
+    Object.keys(generationTimeouts).forEach(channelId => {
+      clearGenerationTimeout(channelId);
+    });
+    
     updateBotStatus({
       isRunning: false,
       currentAction: 'Зупинено',
@@ -697,6 +611,180 @@ export const ChannelProvider = ({ children }: ChannelProviderProps) => {
       description: "Генерацію контенту зупинено" 
     });
   };
+
+  const addLog = (message: string, type: 'info' | 'error' | 'success' | 'warning' = 'info', details?: any) => {
+    const log: BotLog = {
+      timestamp: new Date().toISOString(),
+      message,
+      type,
+      details
+    };
+    
+    console.log(`[${type.toUpperCase()}] ${message}`, details || '');
+    
+    setBotLogs(prev => [...prev, log]);
+  };
+
+  const addChannel = (channelData: Omit<Channel, 'id' | 'lastPosts' | 'isActive' | 'schedule'>) => {
+    const newChannel: Channel = {
+      ...channelData,
+      id: uuidv4(),
+      lastPosts: [],
+      isActive: false,
+      schedule: []
+    };
+    
+    setChannels((prev) => [...prev, newChannel]);
+    
+    // Оновлюємо статистику
+    setStatistics((prev) => ({
+      ...prev,
+      postsByChannel: [...prev.postsByChannel, { channelId: newChannel.id, generated: 0, published: 0 }],
+    }));
+    
+    addLog(`Канал "${channelData.name}" успішно додано`, 'success');
+    
+    toast({ 
+      title: "Канал додано", 
+      description: `Канал "${channelData.name}" успішно додано` 
+    });
+  };
+
+  const updateChannel = (updatedChannel: Channel) => {
+    setChannels((prev) => 
+      prev.map((channel) => 
+        channel.id === updatedChannel.id ? updatedChannel : channel
+      )
+    );
+    
+    addLog(`Канал "${updatedChannel.name}" успішно оновлено`, 'info');
+    
+    toast({ 
+      title: "Канал оновлено", 
+      description: `Канал "${updatedChannel.name}" успішно оновлено` 
+    });
+  };
+
+  const deleteChannel = (id: string) => {
+    const channelName = channels.find(c => c.id === id)?.name || '';
+    setChannels((prev) => prev.filter((channel) => channel.id !== id));
+    
+    // Видаляємо статистику для цього каналу
+    setStatistics((prev) => ({
+      ...prev,
+      postsByChannel: prev.postsByChannel.filter((stats) => stats.channelId !== id),
+    }));
+    
+    addLog(`Канал "${channelName}" успішно видалено`, 'info');
+    
+    toast({ 
+      title: "Канал видалено", 
+      description: `Канал "${channelName}" успішно видалено` 
+    });
+  };
+
+  const updateBotStatus = (status: Partial<BotStatus>) => {
+    setBotStatus((prev) => ({
+      ...prev,
+      ...status,
+      lastUpdate: new Date().toISOString(),
+    }));
+  };
+
+  // Функція для генерації тестового посту
+  const generateTestPost = async (channelId: string): Promise<Post> => {
+    const channel = channels.find(c => c.id === channelId);
+    if (!channel) {
+      const errorMessage = `Канал з ID ${channelId} не знайдено`;
+      addLog(errorMessage, 'error');
+      throw new Error(errorMessage);
+    }
+    
+    // Check if channel has valid credentials before proceeding
+    if (!validateTelegramCredentials(channel.botToken, channel.chatId)) {
+      const errorMessage = `Канал "${channel.name}" має невірні дані для Telegram: перевірте Bot Token та Chat ID`;
+      addLog(errorMessage, 'error');
+      throw new Error(errorMessage);
+    }
+    
+    setIsGenerating(true);
+    addLog(`Початок генерації тестового посту для каналу "${channel.name}"`, 'info');
+    
+    try {
+      // Встановлюємо таймаут для відслідковування можливого зависання
+      setupGenerationTimeout(channelId);
+      
+      // Генеруємо і публікуємо пост
+      const post = await generateAndPublishPost(channelId);
+      
+      // Очищаємо таймаут, оскільки операція успішно завершена
+      clearGenerationTimeout(channelId);
+      
+      addLog(`Тестовий пост для каналу "${channel.name}" успішно згенеровано та опубліковано`, 'success', { 
+        postId: post.id,
+        status: post.status
+      });
+      
+      setIsGenerating(false);
+      return post;
+    } catch (error) {
+      // Очищаємо таймаут при помилці
+      clearGenerationTimeout(channelId);
+      
+      setIsGenerating(false);
+      const errorMessage = `Помилка під час тестового посту для каналу "${channel.name}": ${error instanceof Error ? error.message : String(error)}`;
+      addLog(errorMessage, 'error');
+      throw new Error(errorMessage);
+    }
+  };
+
+  // Завантаження каналів з localStorage при ініціалізації
+  const savedChannels = localStorage.getItem('telegramChannels');
+  if (savedChannels) {
+    try {
+      const parsedChannels = JSON.parse(savedChannels);
+      
+      // Add schedule array if it doesn't exist in saved channels
+      const updatedChannels = parsedChannels.map((channel: any) => ({
+        ...channel,
+        schedule: channel.schedule || []
+      }));
+      
+      setChannels(updatedChannels);
+    } catch (e) {
+      console.error("Error parsing saved channels:", e);
+      setChannels([]);
+    }
+  }
+
+  // Завантаження статистики з localStorage
+  const savedStats = localStorage.getItem('telegramStatistics');
+  if (savedStats) {
+    setStatistics(JSON.parse(savedStats));
+  }
+
+  // Завантаження логів з localStorage
+  const savedLogs = localStorage.getItem('telegramBotLogs');
+  if (savedLogs) {
+    setBotLogs(JSON.parse(savedLogs));
+  }
+
+  // Збереження каналів в localStorage при зміні
+  useEffect(() => {
+    if (channels.length > 0) {
+      localStorage.setItem('telegramChannels', JSON.stringify(channels));
+    }
+  }, [channels]);
+
+  // Збереження статистики в localStorage при зміні
+  useEffect(() => {
+    localStorage.setItem('telegramStatistics', JSON.stringify(statistics));
+  }, [statistics]);
+
+  // Збереження логів в localStorage при зміні
+  useEffect(() => {
+    localStorage.setItem('telegramBotLogs', JSON.stringify(botLogs.slice(-100))); // Зберігаємо останні 100 логів
+  }, [botLogs]);
 
   const value = {
     channels,

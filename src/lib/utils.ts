@@ -26,6 +26,29 @@ export function formatDateTime(isoString: string): string {
   }
 }
 
+// Timeout handling for fetch requests
+export function fetchWithTimeout(url: string, options: RequestInit = {}, timeout = 30000): Promise<Response> {
+  return new Promise(async (resolve, reject) => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => {
+      controller.abort();
+      reject(new Error(`Request timed out after ${timeout}ms`));
+    }, timeout);
+    
+    try {
+      const response = await fetch(url, {
+        ...options,
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+      resolve(response);
+    } catch (error) {
+      clearTimeout(timeoutId);
+      reject(error);
+    }
+  });
+}
+
 // Improved function to validate Telegram credentials with better checks
 export function validateTelegramCredentials(botToken: string, chatId: string): boolean {
   if (!botToken || !chatId) {
@@ -69,21 +92,14 @@ export async function sendTelegramMessage(botToken: string, chatId: string, text
   try {
     console.log('Making API request to Telegram:', apiUrl);
     
-    // Use AbortController to set a timeout
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30-second timeout
-    
-    const response = await fetch(apiUrl, {
+    // Use fetchWithTimeout for better error handling
+    const response = await fetchWithTimeout(apiUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(payload),
-      signal: controller.signal
-    });
-    
-    // Clear the timeout
-    clearTimeout(timeoutId);
+    }, 30000); // 30-second timeout
     
     console.log('Telegram API response status:', response.status);
     
@@ -134,21 +150,14 @@ export async function sendTelegramPhoto(botToken: string, chatId: string, imageU
     console.log('Making photo API request to Telegram:', apiUrl);
     console.log('Using photo URL:', imageUrl);
     
-    // Use AbortController to set a timeout
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30-second timeout
-    
-    const response = await fetch(apiUrl, {
+    // Use fetchWithTimeout for better error handling
+    const response = await fetchWithTimeout(apiUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(payload),
-      signal: controller.signal
-    });
-    
-    // Clear the timeout
-    clearTimeout(timeoutId);
+    }, 30000); // 30-second timeout
     
     console.log('Telegram photo API response status:', response.status);
     

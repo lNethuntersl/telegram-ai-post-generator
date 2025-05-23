@@ -4,16 +4,39 @@ import { useChannelContext } from '@/context/ChannelContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { format } from 'date-fns';
-import { uk } from 'date-fns/locale';
+import { Button } from '@/components/ui/button';
+import { AlertCircle, RefreshCw } from 'lucide-react';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { formatDateTime } from '@/lib/utils';
 
 const StatusMonitor = () => {
-  const { botStatus, channels, isGenerating } = useChannelContext();
+  const { botStatus, channels, isGenerating, stopBot } = useChannelContext();
   const [progress, setProgress] = useState(0);
+  const [showTimeoutWarning, setShowTimeoutWarning] = useState(false);
+  const [processingTime, setProcessingTime] = useState(0);
+  
+  // Reset timeout warning when generation status changes
+  useEffect(() => {
+    if (isGenerating) {
+      setShowTimeoutWarning(false);
+    }
+  }, [isGenerating]);
   
   // Імітуємо прогрес для демонстрації
   useEffect(() => {
     if (isGenerating) {
+      // Запускаємо таймер для відслідковування часу генерації
+      const processingTimer = setInterval(() => {
+        setProcessingTime(prev => {
+          const newTime = prev + 1;
+          // Якщо генерація триває більше 30 секунд, показуємо попередження
+          if (newTime > 30 && !showTimeoutWarning) {
+            setShowTimeoutWarning(true);
+          }
+          return newTime;
+        });
+      }, 1000);
+
       const timer = setInterval(() => {
         setProgress(prev => {
           const newProgress = prev + Math.random() * 2;
@@ -25,18 +48,23 @@ const StatusMonitor = () => {
         });
       }, 1000);
       
-      return () => clearInterval(timer);
+      return () => {
+        clearInterval(timer);
+        clearInterval(processingTimer);
+        setProcessingTime(0);
+      };
     } else {
       setProgress(0);
+      setProcessingTime(0);
+      setShowTimeoutWarning(false);
     }
-  }, [isGenerating]);
+  }, [isGenerating, showTimeoutWarning]);
 
-  const formatDate = (dateString: string) => {
-    try {
-      return format(new Date(dateString), 'dd MMMM yyyy, HH:mm:ss', { locale: uk });
-    } catch (e) {
-      return 'Невідома дата';
-    }
+  // Функція для форматування часу у хвилинах:секундах
+  const formatProcessingTime = (seconds: number): string => {
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
   };
 
   // Отримуємо активний канал зі статусом для відображення деталей
@@ -47,6 +75,11 @@ const StatusMonitor = () => {
   const activeChannel = activeChannelStatus 
     ? channels.find(channel => channel.id === activeChannelStatus.channelId) 
     : null;
+
+  const handleCancelGeneration = () => {
+    stopBot();
+    setShowTimeoutWarning(false);
+  };
 
   return (
     <div className="space-y-4">
@@ -70,7 +103,7 @@ const StatusMonitor = () => {
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Останнє оновлення:</span>
-              <span className="font-medium">{formatDate(botStatus.lastUpdate)}</span>
+              <span className="font-medium">{formatDateTime(botStatus.lastUpdate)}</span>
             </div>
           </div>
           
@@ -79,10 +112,38 @@ const StatusMonitor = () => {
               <div className="space-y-1.5">
                 <div className="flex justify-between text-sm">
                   <span>Прогрес генерації</span>
-                  <span>{Math.round(progress)}%</span>
+                  <span>{Math.round(progress)}% ({formatProcessingTime(processingTime)})</span>
                 </div>
                 <Progress value={progress} />
               </div>
+
+              {showTimeoutWarning && (
+                <Alert variant="warning" className="mt-2 bg-amber-50 border-amber-300">
+                  <AlertCircle className="h-4 w-4 text-amber-600" />
+                  <AlertTitle className="text-amber-700">Генерація триває довше, ніж очікувалося</AlertTitle>
+                  <AlertDescription className="text-amber-600">
+                    Процес генерації триває вже {formatProcessingTime(processingTime)}. Можливо, виникли проблеми з підключенням до Telegram API.
+                    <div className="mt-2 flex space-x-2">
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="bg-white border-amber-300 text-amber-700" 
+                        onClick={handleCancelGeneration}
+                      >
+                        Скасувати
+                      </Button>
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="bg-white border-amber-300 text-amber-700"
+                        onClick={() => setShowTimeoutWarning(false)}
+                      >
+                        <RefreshCw className="mr-1 h-3 w-3" /> Продовжити очікування
+                      </Button>
+                    </div>
+                  </AlertDescription>
+                </Alert>
+              )}
               
               {activeChannel && (
                 <div className="mt-4 bg-muted p-3 rounded-md">
@@ -95,7 +156,7 @@ const StatusMonitor = () => {
                     {activeChannelStatus?.nextPostTime && (
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Наступний пост:</span>
-                        <span>{formatDate(activeChannelStatus.nextPostTime)}</span>
+                        <span>{formatDateTime(activeChannelStatus.nextPostTime)}</span>
                       </div>
                     )}
                   </div>
