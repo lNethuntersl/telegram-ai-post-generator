@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useChannelContext } from '@/context/ChannelContext';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
