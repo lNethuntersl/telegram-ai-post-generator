@@ -8,49 +8,54 @@ import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { InfoIcon } from 'lucide-react';
+import { Input } from '@/components/ui/input';
 
 const PromptSettings = () => {
   const { channels, updateChannel } = useChannelContext();
   const [selectedChannelId, setSelectedChannelId] = useState<string>("");
   const [promptTemplate, setPromptTemplate] = useState<string>("");
+  const [grokApiKey, setGrokApiKey] = useState<string>("");
   const { toast } = useToast();
 
   const selectedChannel = channels.find(channel => channel.id === selectedChannelId);
 
-  // Завантаження шаблону промпту при виборі каналу
+  // Load prompt template and API key when selecting a channel
   const handleChannelSelect = (channelId: string) => {
     setSelectedChannelId(channelId);
     const channel = channels.find(ch => ch.id === channelId);
     if (channel) {
       setPromptTemplate(channel.promptTemplate);
+      setGrokApiKey(channel.grokApiKey || "");
     } else {
       setPromptTemplate("");
+      setGrokApiKey("");
     }
   };
 
-  // Збереження змін для каналу
+  // Save changes to the channel
   const handleSavePrompt = () => {
     if (!selectedChannel) return;
     
     updateChannel({
       ...selectedChannel,
-      promptTemplate
+      promptTemplate,
+      grokApiKey: grokApiKey.trim() || undefined
     });
     
     toast({
-      title: "Промпт збережено",
-      description: `Шаблон промпту оновлено для каналу "${selectedChannel.name}"`,
+      title: "Налаштування збережено",
+      description: `Налаштування промпту оновлено для каналу "${selectedChannel.name}"`,
     });
   };
 
-  // Приклади підказок для промптів
+  // Prompt examples
   const promptExamples = [
     "Створи інформативний пост про {{тема}} з актуальними даними та цікавими фактами. Використовуй неформальний стиль та додай емодзі.",
     "Напиши короткий пост для соціальних мереж про {{тема}}. Включи 3 ключові факти та заклик до дії в кінці.",
     "Підготуй освітній пост про {{тема}}. Розбий інформацію на пункти з емодзі та додай цікавий висновок."
   ];
 
-  // Додавання прикладу промпту
+  // Add example prompt
   const addExamplePrompt = (example: string) => {
     setPromptTemplate(prev => prev + (prev ? '\n\n' : '') + example);
   };
@@ -60,7 +65,7 @@ const PromptSettings = () => {
       <CardHeader>
         <CardTitle>Налаштування промптів для ШІ</CardTitle>
         <CardDescription>
-          Налаштуйте шаблони промптів для кожного з ваших каналів
+          Налаштуйте шаблони промптів та API ключі для кожного з ваших каналів
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -85,6 +90,21 @@ const PromptSettings = () => {
 
         {selectedChannelId && (
           <>
+            <div className="space-y-2">
+              <Label htmlFor="grok-api-key">Grok API ключ</Label>
+              <Input
+                id="grok-api-key"
+                type="password"
+                value={grokApiKey}
+                onChange={(e) => setGrokApiKey(e.target.value)}
+                placeholder="Введіть ваш Grok API ключ"
+                className="font-mono text-sm"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                API ключ потрібен для генерації контенту. Залиште пустим, якщо використовуєте інший метод.
+              </p>
+            </div>
+
             <div className="space-y-2">
               <div className="flex justify-between items-center">
                 <Label htmlFor="prompt-template">Шаблон промпту</Label>
@@ -134,7 +154,7 @@ const PromptSettings = () => {
             </div>
 
             <Button onClick={handleSavePrompt} className="w-full">
-              Зберегти промпт
+              Зберегти налаштування
             </Button>
           </>
         )}

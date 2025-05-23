@@ -11,7 +11,7 @@ import { formatDateTime } from '@/lib/utils';
 
 const StatusMonitor = () => {
   const { botStatus, channels, isGenerating, stopBot } = useChannelContext();
-  const [progress, setProgress] = useState(0);
+  const [progress, setProgress] = useState(10); // Start with 10% to show immediate feedback
   const [showTimeoutWarning, setShowTimeoutWarning] = useState(false);
   const [processingTime, setProcessingTime] = useState(0);
   
@@ -19,20 +19,23 @@ const StatusMonitor = () => {
   useEffect(() => {
     if (isGenerating) {
       setShowTimeoutWarning(false);
+      setProgress(10); // Reset progress to initial value when generation starts
+    } else {
+      setProgress(0); // Reset to 0 when not generating
     }
   }, [isGenerating]);
   
-  // Імітуємо прогрес для демонстрації
+  // Simulation of progress and time tracking for demonstration
   useEffect(() => {
     let timerProgress;
     let processingTimer;
     
     if (isGenerating) {
-      // Запускаємо таймер для відслідковування часу генерації
+      // Start timer for tracking generation time
       processingTimer = setInterval(() => {
         setProcessingTime(prev => {
           const newTime = prev + 1;
-          // Якщо генерація триває більше 30 секунд, показуємо попередження
+          // Show warning if generation takes more than 30 seconds
           if (newTime > 30 && !showTimeoutWarning) {
             setShowTimeoutWarning(true);
           }
@@ -40,16 +43,16 @@ const StatusMonitor = () => {
         });
       }, 1000);
 
+      // Modified progress calculation to ensure visible movement
       timerProgress = setInterval(() => {
         setProgress(prev => {
-          const newProgress = prev + Math.random() * 2;
-          if (newProgress >= 100) {
-            clearInterval(timerProgress);
-            return 100;
-          }
+          // Ensure progress moves more consistently and visibly
+          // Progress moves faster at the start and slows down as it approaches 100%
+          const increment = Math.max(0.5, (100 - prev) / 15);
+          const newProgress = Math.min(prev + increment, 99); // Cap at 99% until complete
           return newProgress;
         });
-      }, 1000);
+      }, 800);
       
       return () => {
         if (timerProgress) clearInterval(timerProgress);
@@ -63,14 +66,14 @@ const StatusMonitor = () => {
     }
   }, [isGenerating, showTimeoutWarning]);
 
-  // Функція для форматування часу у хвилинах:секундах
+  // Function to format time in minutes:seconds
   const formatProcessingTime = (seconds: number): string => {
     const minutes = Math.floor(seconds / 60);
     const remainingSeconds = seconds % 60;
     return `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
   };
 
-  // Отримуємо активний канал зі статусом для відображення деталей
+  // Get active channel status for displaying details
   const activeChannelStatus = botStatus.channelStatuses.find(
     status => channels.find(channel => channel.id === status.channelId)?.isActive
   );
@@ -117,7 +120,7 @@ const StatusMonitor = () => {
                   <span>Прогрес генерації</span>
                   <span>{Math.round(progress)}% ({formatProcessingTime(processingTime)})</span>
                 </div>
-                <Progress value={progress} />
+                <Progress value={progress} className="h-2" />
               </div>
 
               {showTimeoutWarning && (
@@ -125,7 +128,7 @@ const StatusMonitor = () => {
                   <AlertCircle className="h-4 w-4" />
                   <AlertTitle>Генерація триває довше, ніж очікувалося</AlertTitle>
                   <AlertDescription>
-                    Процес генерації триває вже {formatProcessingTime(processingTime)}. Можливо, виникли проблеми з підключенням до Telegram API.
+                    Процес генерації триває вже {formatProcessingTime(processingTime)}. Можливо, виникли проблеми з підключенням до API.
                     <div className="mt-2 flex space-x-2">
                       <Button 
                         variant="destructive" 
