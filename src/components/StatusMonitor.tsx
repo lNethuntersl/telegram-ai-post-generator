@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { useChannelContext } from '@/context/ChannelContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -14,6 +13,8 @@ const StatusMonitor = () => {
   const [progress, setProgress] = useState(10); // Start with 10% to show immediate feedback
   const [showTimeoutWarning, setShowTimeoutWarning] = useState(false);
   const [processingTime, setProcessingTime] = useState(0);
+  const [generationProgress, setGenerationProgress] = useState(0);
+  const [timeElapsed, setTimeElapsed] = useState(0);
   
   // Reset timeout warning when generation status changes
   useEffect(() => {
@@ -115,14 +116,21 @@ const StatusMonitor = () => {
           
           {botStatus.isRunning && (
             <>
-              <div className="space-y-1.5">
-                <div className="flex justify-between text-sm">
-                  <span>Прогрес генерації</span>
-                  <span>{Math.round(progress)}% ({formatProcessingTime(processingTime)})</span>
+              {isGenerating && (
+                <div className="mt-4 space-y-2">
+                  <div className="flex justify-between text-xs">
+                    <span>Прогрес генерації</span>
+                    <span>{generationProgress}% ({timeElapsed})</span>
+                  </div>
+                  <Progress value={Math.max(5, generationProgress)} className="h-2" />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {botStatus.isRunning 
+                      ? "Генерація контенту... Будь ласка, зачекайте." 
+                      : "Тестова генерація контенту..."}
+                  </p>
                 </div>
-                <Progress value={progress} className="h-2" />
-              </div>
-
+              )}
+              
               {showTimeoutWarning && (
                 <Alert variant="destructive" className="mt-2">
                   <AlertCircle className="h-4 w-4" />

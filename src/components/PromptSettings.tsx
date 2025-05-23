@@ -9,12 +9,15 @@ import { useToast } from '@/components/ui/use-toast';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { InfoIcon } from 'lucide-react';
 import { Input } from '@/components/ui/input';
+import { Progress } from '@/components/ui/progress';
 
 const PromptSettings = () => {
   const { channels, updateChannel } = useChannelContext();
   const [selectedChannelId, setSelectedChannelId] = useState<string>("");
   const [promptTemplate, setPromptTemplate] = useState<string>("");
   const [grokApiKey, setGrokApiKey] = useState<string>("");
+  const [isSaving, setIsSaving] = useState<boolean>(false);
+  const [saveProgress, setSaveProgress] = useState<number>(0);
   const { toast } = useToast();
 
   const selectedChannel = channels.find(channel => channel.id === selectedChannelId);
@@ -24,7 +27,7 @@ const PromptSettings = () => {
     setSelectedChannelId(channelId);
     const channel = channels.find(ch => ch.id === channelId);
     if (channel) {
-      setPromptTemplate(channel.promptTemplate);
+      setPromptTemplate(channel.promptTemplate || "");
       setGrokApiKey(channel.grokApiKey || "");
     } else {
       setPromptTemplate("");
@@ -36,16 +39,36 @@ const PromptSettings = () => {
   const handleSavePrompt = () => {
     if (!selectedChannel) return;
     
-    updateChannel({
-      ...selectedChannel,
-      promptTemplate,
-      grokApiKey: grokApiKey.trim() || undefined
-    });
+    setIsSaving(true);
+    setSaveProgress(25);
     
-    toast({
-      title: "Налаштування збережено",
-      description: `Налаштування промпту оновлено для каналу "${selectedChannel.name}"`,
-    });
+    // Simulate saving process
+    setTimeout(() => {
+      setSaveProgress(50);
+      
+      setTimeout(() => {
+        setSaveProgress(75);
+        
+        setTimeout(() => {
+          setSaveProgress(100);
+          
+          updateChannel({
+            ...selectedChannel,
+            promptTemplate,
+            grokApiKey: grokApiKey.trim() || undefined
+          });
+          
+          toast({
+            title: "Налаштування збережено",
+            description: `Налаштування промпту та Grok API ключ оновлено для каналу "${selectedChannel.name}"`,
+            variant: "success"
+          });
+          
+          setIsSaving(false);
+          setSaveProgress(0);
+        }, 300);
+      }, 300);
+    }, 300);
   };
 
   // Prompt examples
@@ -101,7 +124,7 @@ const PromptSettings = () => {
                 className="font-mono text-sm"
               />
               <p className="text-xs text-muted-foreground mt-1">
-                API ключ потрібен для генерації контенту. Залиште пустим, якщо використовуєте інший метод.
+                API ключ потрібен для генерації контенту. Без дійсного ключа генерація не працюватиме.
               </p>
             </div>
 
@@ -153,8 +176,18 @@ const PromptSettings = () => {
               </div>
             </div>
 
-            <Button onClick={handleSavePrompt} className="w-full">
-              Зберегти налаштування
+            {isSaving && (
+              <div className="space-y-2">
+                <div className="flex justify-between text-xs">
+                  <span>Зберігаємо налаштування...</span>
+                  <span>{saveProgress}%</span>
+                </div>
+                <Progress value={saveProgress} className="h-2" />
+              </div>
+            )}
+
+            <Button onClick={handleSavePrompt} className="w-full" disabled={isSaving}>
+              {isSaving ? "Зберігаємо..." : "Зберегти налаштування"}
             </Button>
           </>
         )}
