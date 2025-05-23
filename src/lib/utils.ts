@@ -26,22 +26,31 @@ export function formatDateTime(isoString: string): string {
   }
 }
 
-// Function to validate Telegram credentials
+// Improved function to validate Telegram credentials with better checks
 export function validateTelegramCredentials(botToken: string, chatId: string): boolean {
-  if (!botToken || !chatId) return false;
+  if (!botToken || !chatId) {
+    console.log("validateTelegramCredentials: Missing bot token or chat ID");
+    return false;
+  }
   
   // Basic validation for bot token (should be in format 123456789:ABC-DEF1234ghIkl-zyx57W2v1u123ew11)
   const botTokenPattern = /^\d+:[A-Za-z0-9_-]+$/;
-  if (!botTokenPattern.test(botToken)) return false;
+  if (!botTokenPattern.test(botToken)) {
+    console.log("validateTelegramCredentials: Invalid bot token format");
+    return false;
+  }
   
   // Chat ID can be a number (group/channel ID) or username (@username)
   const chatIdPattern = /^-?\d+$|^@[A-Za-z0-9_]+$/;
-  if (!chatIdPattern.test(chatId)) return false;
+  if (!chatIdPattern.test(chatId)) {
+    console.log("validateTelegramCredentials: Invalid chat ID format");
+    return false;
+  }
   
   return true;
 }
 
-// Improved function to send message to Telegram with better error handling
+// Enhanced function to send message to Telegram with improved error handling and timeouts
 export async function sendTelegramMessage(botToken: string, chatId: string, text: string): Promise<any> {
   if (!validateTelegramCredentials(botToken, chatId)) {
     throw new Error('Invalid bot token or chat ID format');
@@ -60,13 +69,21 @@ export async function sendTelegramMessage(botToken: string, chatId: string, text
   try {
     console.log('Making API request to Telegram:', apiUrl);
     
+    // Use AbortController to set a timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30-second timeout
+    
     const response = await fetch(apiUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(payload),
+      signal: controller.signal
     });
+    
+    // Clear the timeout
+    clearTimeout(timeoutId);
     
     console.log('Telegram API response status:', response.status);
     
@@ -86,12 +103,17 @@ export async function sendTelegramMessage(botToken: string, chatId: string, text
     console.log('Telegram API success response:', data);
     return data;
   } catch (error) {
+    if (error.name === 'AbortError') {
+      console.error('Request timed out after 30 seconds');
+      throw new Error('Telegram API request timed out after 30 seconds');
+    }
+    
     console.error('Error sending Telegram message:', error);
     throw error;
   }
 }
 
-// Improved function to send photo with caption to Telegram
+// Enhanced function to send photo with caption to Telegram with timeout
 export async function sendTelegramPhoto(botToken: string, chatId: string, imageUrl: string, caption: string): Promise<any> {
   if (!validateTelegramCredentials(botToken, chatId)) {
     throw new Error('Invalid bot token or chat ID format');
@@ -112,13 +134,21 @@ export async function sendTelegramPhoto(botToken: string, chatId: string, imageU
     console.log('Making photo API request to Telegram:', apiUrl);
     console.log('Using photo URL:', imageUrl);
     
+    // Use AbortController to set a timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30-second timeout
+    
     const response = await fetch(apiUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(payload),
+      signal: controller.signal
     });
+    
+    // Clear the timeout
+    clearTimeout(timeoutId);
     
     console.log('Telegram photo API response status:', response.status);
     
@@ -138,6 +168,11 @@ export async function sendTelegramPhoto(botToken: string, chatId: string, imageU
     console.log('Telegram photo API success response:', data);
     return data;
   } catch (error) {
+    if (error.name === 'AbortError') {
+      console.error('Request timed out after 30 seconds');
+      throw new Error('Telegram API request timed out after 30 seconds');
+    }
+    
     console.error('Error sending Telegram photo:', error);
     throw error;
   }

@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { Channel, Post, BotStatus, Statistics, BotLog, ScheduleTime } from '../types';
@@ -16,6 +17,9 @@ interface ChannelContextProps {
   stopBot: () => void;
   isGenerating: boolean;
   generateTestPost: (channelId: string) => Promise<Post>;
+  publishPost: (post: Post) => Promise<Post>;
+  updatePost: (post: Post) => Promise<void>;
+  deletePost: (postId: string, channelId: string) => Promise<void>;
 }
 
 const ChannelContext = createContext<ChannelContextProps | undefined>(undefined);
@@ -487,6 +491,56 @@ export const ChannelProvider = ({ children }: ChannelProviderProps) => {
     });
   };
 
+  // New function to update an existing post
+  const updatePost = async (updatedPost: Post): Promise<void> => {
+    const channel = channels.find(c => c.id === updatedPost.channelId);
+    if (!channel) {
+      const errorMessage = `Канал з ID ${updatedPost.channelId} не знайдено`;
+      addLog(errorMessage, 'error');
+      throw new Error(errorMessage);
+    }
+
+    addLog(`Оновлення посту для каналу "${channel.name}"`, 'info', { postId: updatedPost.id });
+
+    // Update the post in the channel
+    setChannels(prev => prev.map(c => 
+      c.id === updatedPost.channelId 
+        ? {
+            ...c,
+            lastPosts: c.lastPosts.map(p => 
+              p.id === updatedPost.id ? updatedPost : p
+            )
+          }
+        : c
+    ));
+
+    addLog(`Пост для каналу "${channel.name}" успішно оновлено`, 'success', { postId: updatedPost.id });
+  };
+
+  // New function to delete a post
+  const deletePost = async (postId: string, channelId: string): Promise<void> => {
+    const channel = channels.find(c => c.id === channelId);
+    if (!channel) {
+      const errorMessage = `Канал з ID ${channelId} не знайдено`;
+      addLog(errorMessage, 'error');
+      throw new Error(errorMessage);
+    }
+
+    addLog(`Видалення посту для каналу "${channel.name}"`, 'info', { postId });
+
+    // Remove the post from the channel
+    setChannels(prev => prev.map(c => 
+      c.id === channelId 
+        ? {
+            ...c,
+            lastPosts: c.lastPosts.filter(p => p.id !== postId)
+          }
+        : c
+    ));
+
+    addLog(`Пост для каналу "${channel.name}" успішно видалено`, 'success', { postId });
+  };
+
   // Перевірка чи пост був доданий до каналу
   const isPostAddedToChannel = (postId: string, channelId: string): boolean => {
     const channel = channels.find(c => c.id === channelId);
@@ -656,6 +710,9 @@ export const ChannelProvider = ({ children }: ChannelProviderProps) => {
     stopBot,
     isGenerating,
     generateTestPost,
+    publishPost,
+    updatePost,
+    deletePost
   };
 
   return (
