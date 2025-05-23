@@ -24,9 +24,12 @@ const StatusMonitor = () => {
   
   // Імітуємо прогрес для демонстрації
   useEffect(() => {
+    let timerProgress;
+    let processingTimer;
+    
     if (isGenerating) {
       // Запускаємо таймер для відслідковування часу генерації
-      const processingTimer = setInterval(() => {
+      processingTimer = setInterval(() => {
         setProcessingTime(prev => {
           const newTime = prev + 1;
           // Якщо генерація триває більше 30 секунд, показуємо попередження
@@ -37,11 +40,11 @@ const StatusMonitor = () => {
         });
       }, 1000);
 
-      const timer = setInterval(() => {
+      timerProgress = setInterval(() => {
         setProgress(prev => {
           const newProgress = prev + Math.random() * 2;
           if (newProgress >= 100) {
-            clearInterval(timer);
+            clearInterval(timerProgress);
             return 100;
           }
           return newProgress;
@@ -49,8 +52,8 @@ const StatusMonitor = () => {
       }, 1000);
       
       return () => {
-        clearInterval(timer);
-        clearInterval(processingTimer);
+        if (timerProgress) clearInterval(timerProgress);
+        if (processingTimer) clearInterval(processingTimer);
         setProcessingTime(0);
       };
     } else {
@@ -118,24 +121,22 @@ const StatusMonitor = () => {
               </div>
 
               {showTimeoutWarning && (
-                <Alert variant="warning" className="mt-2 bg-amber-50 border-amber-300">
-                  <AlertCircle className="h-4 w-4 text-amber-600" />
-                  <AlertTitle className="text-amber-700">Генерація триває довше, ніж очікувалося</AlertTitle>
-                  <AlertDescription className="text-amber-600">
+                <Alert variant="destructive" className="mt-2">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertTitle>Генерація триває довше, ніж очікувалося</AlertTitle>
+                  <AlertDescription>
                     Процес генерації триває вже {formatProcessingTime(processingTime)}. Можливо, виникли проблеми з підключенням до Telegram API.
                     <div className="mt-2 flex space-x-2">
                       <Button 
-                        variant="outline" 
-                        size="sm" 
-                        className="bg-white border-amber-300 text-amber-700" 
+                        variant="destructive" 
+                        size="sm"
                         onClick={handleCancelGeneration}
                       >
                         Скасувати
                       </Button>
                       <Button 
                         variant="outline" 
-                        size="sm" 
-                        className="bg-white border-amber-300 text-amber-700"
+                        size="sm"
                         onClick={() => setShowTimeoutWarning(false)}
                       >
                         <RefreshCw className="mr-1 h-3 w-3" /> Продовжити очікування
