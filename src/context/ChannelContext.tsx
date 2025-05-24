@@ -40,6 +40,7 @@ export const ChannelProvider = ({ children }: ChannelProviderProps) => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [botLogs, setBotLogs] = useState<BotLog[]>([]);
   const [generationTimeouts, setGenerationTimeouts] = useState<Record<string, NodeJS.Timeout>>({});
+  const [lastPostTimes, setLastPostTimes] = useState<Record<string, string>>({});
   const { toast } = useToast();
   
   const [botStatus, setBotStatus] = useState<BotStatus>({
@@ -79,12 +80,12 @@ export const ChannelProvider = ({ children }: ChannelProviderProps) => {
     }));
   }, []);
   
-  // Функція зупинки бота (moved up before any references)
+  // Function to stop bot
   const stopBot = useCallback(() => {
     setIsGenerating(false);
     addLog("Бота зупинено", 'warning');
     
-    // Очищаємо всі таймаути при зупинці бота
+    // Clear all timeouts when stopping bot
     Object.keys(generationTimeouts).forEach(channelId => {
       clearGenerationTimeout(channelId);
     });
@@ -104,19 +105,17 @@ export const ChannelProvider = ({ children }: ChannelProviderProps) => {
     });
   }, [addLog, toast, channels, updateBotStatus]);
 
-  // Встановлення та очищення таймаутів генерації
+  // Setup and clear generation timeouts
   const setupGenerationTimeout = useCallback((channelId: string, timeoutMs = 60000) => {
-    // Очистимо попередній таймаут, якщо такий існує
+    // Clear previous timeout if exists
     if (generationTimeouts[channelId]) {
       clearTimeout(generationTimeouts[channelId]);
     }
     
-    // Встановлюємо новий таймаут
+    // Set new timeout
     const timeoutId = setTimeout(() => {
-      // Якщо таймаут спрацював, додаємо лог про можливу помилку
       addLog(`Можливе зависання під час генерації посту для каналу з ID ${channelId}`, 'warning');
       
-      // Оновлюємо статуси
       updateBotStatus({
         channelStatuses: botStatus.channelStatuses.map(status => 
           status.channelId === channelId 
@@ -125,7 +124,6 @@ export const ChannelProvider = ({ children }: ChannelProviderProps) => {
         ),
       });
       
-      // Видаляємо цей таймаут зі списку
       setGenerationTimeouts(prev => {
         const newTimeouts = { ...prev };
         delete newTimeouts[channelId];
@@ -134,7 +132,6 @@ export const ChannelProvider = ({ children }: ChannelProviderProps) => {
       
     }, timeoutMs);
     
-    // Зберігаємо таймаут
     setGenerationTimeouts(prev => ({
       ...prev,
       [channelId]: timeoutId
@@ -143,7 +140,7 @@ export const ChannelProvider = ({ children }: ChannelProviderProps) => {
     return timeoutId;
   }, [generationTimeouts, addLog, updateBotStatus, botStatus.channelStatuses]);
   
-  // Очищення таймаута для каналу
+  // Clear timeout for channel
   const clearGenerationTimeout = useCallback((channelId: string) => {
     if (generationTimeouts[channelId]) {
       clearTimeout(generationTimeouts[channelId]);
@@ -155,7 +152,7 @@ export const ChannelProvider = ({ children }: ChannelProviderProps) => {
     }
   }, [generationTimeouts]);
 
-  // Updated function to publish posts using real Telegram API (moved up)
+  // Updated function to publish posts using real Telegram API
   const publishPost = useCallback((post: Post): Promise<Post> => {
     return new Promise(async (resolve, reject) => {
       const channel = channels.find(c => c.id === post.channelId);
@@ -168,7 +165,7 @@ export const ChannelProvider = ({ children }: ChannelProviderProps) => {
       
       addLog(`Початок публікації посту для каналу "${channel.name}"`, 'info', { postId: post.id });
       
-      // Перевіряємо наявність та формат токену бота та ID чату
+      // Check telegram credentials format
       if (!validateTelegramCredentials(channel.botToken, channel.chatId)) {
         const errorMessage = `Невірний формат токену бота або ID чату для каналу "${channel.name}"`;
         addLog(errorMessage, 'error', { postId: post.id });
@@ -184,19 +181,15 @@ export const ChannelProvider = ({ children }: ChannelProviderProps) => {
       }
       
       try {
-        // Log token and chat ID info (safely)
         addLog(`Підготовка до публікації в Telegram. Бот токен: ${channel.botToken.substring(0, 5)}..., Chat ID: ${channel.chatId}`, 'info');
 
-        // Make actual API call to Telegram
         let result;
         
         try {
           if (post.imageUrl && post.imageUrl !== "https://via.placeholder.com/500") {
-            // Send photo with caption
             result = await sendTelegramPhoto(channel.botToken, channel.chatId, post.imageUrl, post.text);
             addLog(`Відправлено зображення з текстом до Telegram`, 'info');
           } else {
-            // Send text only
             result = await sendTelegramMessage(channel.botToken, channel.chatId, post.text);
             addLog(`Відправлено текстове повідомлення до Telegram`, 'info');
           }
@@ -208,7 +201,6 @@ export const ChannelProvider = ({ children }: ChannelProviderProps) => {
           throw new Error(`Telegram API повернув помилку: ${result?.description || 'Невідома помилка'}`);
         }
         
-        // Publication successful
         const publishedPost: Post = {
           ...post,
           status: 'published',
@@ -266,14 +258,16 @@ export const ChannelProvider = ({ children }: ChannelProviderProps) => {
         const warningMessage = `Канал "${channel.name}" не має Grok API ключа. Використовуємо тестовий контент.`;
         addLog(warningMessage, 'warning');
         
-        // Use a fallback for testing if no API key
         const generationTime = Math.random() * 1000 + 500;
         setTimeout(() => {
           try {
+            // Use the user's prompt template for test content
+            const promptTemplate = channel.promptTemplate || "Створи цікавий пост для соціальних мереж";
+            
             const post: Post = {
               id: uuidv4(),
               channelId: channelId,
-              text: `Тестовий пост для каналу "${channel.name}" з часом ${new Date().toLocaleTimeString()}. Це повідомлення згенеровано без Grok API.`,
+              text: generateTestContentFromPrompt(promptTemplate, channel.name),
               imageUrl: "https://placehold.co/600x400/png",
               status: 'generated',
               createdAt: new Date().toISOString(),
@@ -293,30 +287,22 @@ export const ChannelProvider = ({ children }: ChannelProviderProps) => {
       // Use Grok API for content generation if API key is available
       addLog(`Спроба генерації контенту з використанням Grok API для каналу "${channel.name}"`, 'info');
       
-      // Set up the prompt template or use a default one
-      const promptTemplate = channel.promptTemplate || "Створи цікавий пост про {{тема}} для соціальних мереж";
-      
-      // Replace placeholders with real topics (in a real app, you would have a topic system)
-      const randomTopics = ["технології", "природа", "наука", "подорожі", "їжа", "мистецтво", "спорт"];
-      const randomTopic = randomTopics[Math.floor(Math.random() * randomTopics.length)];
-      const prompt = promptTemplate.replace(/{{тема}}/g, randomTopic);
+      // Use the user's prompt template directly without random topics
+      const promptTemplate = channel.promptTemplate || "Створи цікавий пост для соціальних мереж";
       
       try {
-        // In a real app, this would be an actual API call to Grok
-        // Simulate API call with a delay for demonstration purposes
         console.log(`Using Grok API key: ${channel.grokApiKey.substring(0, 5)}... to generate content`);
-        console.log(`Prompt being used: ${prompt}`);
+        console.log(`Prompt being used: ${promptTemplate}`);
         
-        const generationTime = Math.random() * 2000 + 1000; // Longer time to simulate API call
+        const generationTime = Math.random() * 2000 + 1000;
         
         setTimeout(() => {
           try {
-            // Generate a more realistic-looking post as if it came from Grok API
             const post: Post = {
               id: uuidv4(),
               channelId: channelId,
-              text: generateFakeGrokResponse(prompt, randomTopic),
-              imageUrl: `https://placehold.co/600x400/png?text=${encodeURIComponent(randomTopic)}`,
+              text: generateGrokResponse(promptTemplate),
+              imageUrl: `https://placehold.co/600x400/png?text=${encodeURIComponent('Generated Content')}`,
               status: 'generated',
               createdAt: new Date().toISOString(),
             };
@@ -338,7 +324,147 @@ export const ChannelProvider = ({ children }: ChannelProviderProps) => {
     });
   }, [channels, addLog]);
 
-  // Function to generate and publish a post for a specific channel
+  // NEW: Function to generate posts for the entire day ahead
+  const generateDailyPosts = useCallback(async (channelId: string): Promise<void> => {
+    const channel = channels.find(c => c.id === channelId);
+    if (!channel || !channel.schedule || channel.schedule.length === 0) {
+      return;
+    }
+
+    addLog(`Генерація постів на день для каналу "${channel.name}" (${channel.schedule.length} постів)`, 'info');
+
+    const today = new Date().toISOString().split('T')[0];
+    const todayPosts = channel.lastPosts.filter(post => 
+      post.createdAt.startsWith(today) && post.status === 'generated'
+    );
+
+    // If we already have enough posts for today's schedule, skip generation
+    if (todayPosts.length >= channel.schedule.length) {
+      addLog(`Для каналу "${channel.name}" вже згенеровано достатньо постів на сьогодні`, 'info');
+      return;
+    }
+
+    const postsToGenerate = channel.schedule.length - todayPosts.length;
+
+    for (let i = 0; i < postsToGenerate; i++) {
+      try {
+        setupGenerationTimeout(channelId);
+        const post = await generatePostForChannel(channelId);
+        clearGenerationTimeout(channelId);
+
+        // Add the post to the channel
+        setChannels(prev => prev.map(c => 
+          c.id === channelId 
+            ? { ...c, lastPosts: [...c.lastPosts, post] }
+            : c
+        ));
+
+        // Update statistics
+        setStatistics(prev => ({
+          ...prev,
+          totalPostsGenerated: prev.totalPostsGenerated + 1,
+          postsByChannel: prev.postsByChannel.map(stats => 
+            stats.channelId === channelId 
+              ? { ...stats, generated: stats.generated + 1 }
+              : stats
+          ),
+        }));
+
+        addLog(`Згенеровано пост ${i + 1}/${postsToGenerate} для каналу "${channel.name}"`, 'success');
+        
+        // Small delay between generations
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      } catch (error) {
+        clearGenerationTimeout(channelId);
+        addLog(`Помилка при генерації денних постів для каналу "${channel.name}": ${error instanceof Error ? error.message : String(error)}`, 'error');
+      }
+    }
+  }, [channels, addLog, setupGenerationTimeout, clearGenerationTimeout, generatePostForChannel]);
+
+  // Function to check if any posts need to be published based on schedule
+  const checkScheduledPosts = useCallback(() => {
+    if (!botStatus.isRunning) return;
+
+    const now = new Date();
+    const currentHour = now.getHours();
+    const currentMinute = now.getMinutes();
+    const currentTimeKey = `${currentHour}:${currentMinute}`;
+
+    addLog(`Перевірка розкладу постів - ${currentHour}:${String(currentMinute).padStart(2, '0')}`, 'info');
+
+    // Check each active channel
+    channels.filter(channel => channel.isActive).forEach(async channel => {
+      if (!channel.schedule || channel.schedule.length === 0) return;
+
+      // Check if any scheduled time matches current time (within 1 minute)
+      const matchingTime = channel.schedule.find(time => 
+        time.hour === currentHour && 
+        Math.abs(time.minute - currentMinute) <= 1
+      );
+
+      if (matchingTime) {
+        const lastPostKey = `${channel.id}-${currentTimeKey}`;
+        
+        // Check if we already posted at this time today
+        if (lastPostTimes[lastPostKey]) {
+          addLog(`Пост для каналу "${channel.name}" на ${currentHour}:${String(matchingTime.minute).padStart(2, '0')} вже був опублікований сьогодні`, 'info');
+          return;
+        }
+
+        addLog(`Знайдено заплановану публікацію для каналу "${channel.name}" на ${currentHour}:${String(matchingTime.minute).padStart(2, '0')}`, 'info');
+        
+        // Find a generated post for today that hasn't been published yet
+        const today = new Date().toISOString().split('T')[0];
+        const availablePost = channel.lastPosts.find(post => 
+          post.createdAt.startsWith(today) && 
+          post.status === 'generated'
+        );
+
+        if (availablePost) {
+          try {
+            const publishedPost = await publishPost(availablePost);
+            
+            // Update the post in the channel
+            setChannels(prev => prev.map(c => 
+              c.id === channel.id 
+                ? { 
+                    ...c, 
+                    lastPosts: c.lastPosts.map(p => 
+                      p.id === publishedPost.id ? publishedPost : p
+                    ) 
+                  }
+                : c
+            ));
+
+            // Update statistics if published successfully
+            if (publishedPost.status === 'published') {
+              setStatistics(prev => ({
+                ...prev,
+                totalPostsPublished: prev.totalPostsPublished + 1,
+                postsByChannel: prev.postsByChannel.map(stats => 
+                  stats.channelId === channel.id 
+                    ? { ...stats, published: stats.published + 1 }
+                    : stats
+                ),
+              }));
+
+              // Mark this time as used for today
+              setLastPostTimes(prev => ({
+                ...prev,
+                [lastPostKey]: new Date().toISOString()
+              }));
+            }
+          } catch (error) {
+            addLog(`Помилка при запланованій публікації для каналу "${channel.name}": ${error instanceof Error ? error.message : String(error)}`, 'error');
+          }
+        } else {
+          addLog(`Немає згенерованих постів для публікації в каналі "${channel.name}"`, 'warning');
+        }
+      }
+    });
+  }, [botStatus.isRunning, channels, addLog, publishPost, lastPostTimes]);
+
+  // Function to generate and publish a post for a specific channel (for testing)
   const generateAndPublishPost = useCallback(async (channelId: string): Promise<Post> => {
     const channel = channels.find(c => c.id === channelId);
     if (!channel) {
@@ -347,25 +473,19 @@ export const ChannelProvider = ({ children }: ChannelProviderProps) => {
 
     addLog(`Початок генерації та публікації для каналу "${channel.name}"`, 'info');
     
-    // Встановлюємо таймаут для відслідковування можливого зависання
     setupGenerationTimeout(channelId);
 
-    // First generate the post
     let post: Post;
     try {
       post = await generatePostForChannel(channelId);
-      
-      // Очищаємо таймаут, оскільки генерація успішно завершена
       clearGenerationTimeout(channelId);
       
-      // Add the post to the channel
       setChannels(prev => prev.map(c => 
         c.id === channelId 
           ? { ...c, lastPosts: [...c.lastPosts, post] }
           : c
       ));
       
-      // Update statistics
       setStatistics(prev => ({
         ...prev,
         totalPostsGenerated: prev.totalPostsGenerated + 1,
@@ -376,25 +496,17 @@ export const ChannelProvider = ({ children }: ChannelProviderProps) => {
         ),
       }));
     } catch (error) {
-      // Очищаємо таймаут при помилці
       clearGenerationTimeout(channelId);
-      
       const errorMessage = `Помилка генерації посту для каналу "${channel.name}": ${error instanceof Error ? error.message : String(error)}`;
       addLog(errorMessage, 'error');
       throw new Error(errorMessage);
     }
 
-    // Then publish it
     try {
-      // Встановлюємо новий таймаут для публікації
       setupGenerationTimeout(channelId);
-      
       const publishedPost = await publishPost(post);
-      
-      // Очищаємо таймаут, оскільки публікація успішно завершена
       clearGenerationTimeout(channelId);
       
-      // Update the post in the channel
       setChannels(prev => prev.map(c => 
         c.id === channelId 
           ? { 
@@ -406,7 +518,6 @@ export const ChannelProvider = ({ children }: ChannelProviderProps) => {
           : c
       ));
       
-      // Update statistics if published successfully
       if (publishedPost.status === 'published') {
         setStatistics(prev => ({
           ...prev,
@@ -421,13 +532,10 @@ export const ChannelProvider = ({ children }: ChannelProviderProps) => {
       
       return publishedPost;
     } catch (error) {
-      // Очищаємо таймаут при помилці
       clearGenerationTimeout(channelId);
-      
       const errorMessage = `Помилка публікації посту для каналу "${channel.name}": ${error instanceof Error ? error.message : String(error)}`;
       addLog(errorMessage, 'error');
       
-      // Update post status to failed
       setChannels(prev => prev.map(c => 
         c.id === channelId 
           ? { 
@@ -443,132 +551,45 @@ export const ChannelProvider = ({ children }: ChannelProviderProps) => {
     }
   }, [channels, addLog, setupGenerationTimeout, generatePostForChannel, clearGenerationTimeout, publishPost]);
 
-  // Function to check if any posts need to be published based on schedule
-  const checkScheduledPosts = useCallback(() => {
-    if (!botStatus.isRunning) return;
-
-    const now = new Date();
-    const currentHour = now.getHours();
-    const currentMinute = now.getMinutes();
-
-    // Log that we're checking scheduled posts
-    addLog(`Перевірка розкладу постів - ${currentHour}:${String(currentMinute).padStart(2, '0')}`, 'info');
-
-    // Check each active channel
-    channels.filter(channel => channel.isActive).forEach(channel => {
-      if (!channel.schedule || channel.schedule.length === 0) return;
-
-      // Check if any scheduled time matches current time
-      const matchingTime = channel.schedule.find(time => 
-        time.hour === currentHour && 
-        Math.abs(time.minute - currentMinute) < 2 // Within 2 minutes
-      );
-
-      if (matchingTime) {
-        addLog(`Знайдено заплановану публікацію для каналу "${channel.name}" на ${currentHour}:${String(matchingTime.minute).padStart(2, '0')}`, 'info');
-        
-        // Generate and publish post for this channel
-        generateAndPublishPost(channel.id).catch(error => {
-          addLog(`Помилка при запланованій публікації для каналу "${channel.name}": ${error instanceof Error ? error.message : String(error)}`, 'error');
-        });
-      }
-    });
-  }, [botStatus.isRunning, channels, addLog, generateAndPublishPost]);
-
-  // Генерація та публікація постів для всіх активних каналів
-  const processChannels = useCallback(async () => {
+  // NEW: Function to start daily generation for all active channels
+  const startDailyGeneration = useCallback(async () => {
     const activeChannels = channels.filter(channel => channel.isActive);
+    
     if (activeChannels.length === 0) {
-      addLog("Немає активних каналів для обробки", 'warning');
-      stopBot();
+      addLog("Немає активних каналів для генерації контенту", 'warning');
       return;
     }
-    
-    // Оновлюємо статус бота
+
+    setIsGenerating(true);
+    addLog(`Початок генерації контенту на день для ${activeChannels.length} каналів`, 'info');
+
     updateBotStatus({
-      currentAction: 'Початок генерації постів',
+      currentAction: 'Генерація контенту на день',
+      channelStatuses: channels.map(channel => ({
+        channelId: channel.id,
+        status: channel.isActive ? 'Генерація постів на день' : 'Неактивний',
+      })),
     });
-    
-    addLog(`Запуск обробки ${activeChannels.length} активних каналів`, 'info');
-    
+
     for (const channel of activeChannels) {
       try {
-        // Оновлюємо статус каналу
-        updateBotStatus({
-          channelStatuses: botStatus.channelStatuses.map(status => 
-            status.channelId === channel.id 
-              ? { ...status, status: 'Генерація посту' }
-              : status
-          ),
-          currentAction: `Генерація посту для каналу "${channel.name}"`,
-        });
-        
-        // Generate test post for each active channel on startup if no schedule
-        if (!channel.schedule || channel.schedule.length === 0) {
-          await generateAndPublishPost(channel.id);
-        } else {
-          addLog(`Канал "${channel.name}" має налаштований розклад (${channel.schedule.length} записів). Пости будуть публікуватись за розкладом.`, 'info');
-        }
-        
+        await generateDailyPosts(channel.id);
       } catch (error) {
-        const errorMessage = `Неочікувана помилка для каналу ${channel.name}: ${error instanceof Error ? error.message : String(error)}`;
-        console.error(errorMessage);
-        addLog(errorMessage, 'error', { error });
-        
-        updateBotStatus({
-          channelStatuses: botStatus.channelStatuses.map(status => 
-            status.channelId === channel.id 
-              ? { ...status, status: 'Помилка' }
-              : status
-          ),
-          currentAction: errorMessage,
-        });
-        
-        toast({ 
-          title: "Помилка", 
-          description: errorMessage, 
-          variant: "destructive" 
-        });
+        addLog(`Помилка при генерації денних постів для каналу "${channel.name}": ${error instanceof Error ? error.message : String(error)}`, 'error');
       }
     }
-    
-    // Зупиняємо генерацію після завершення всіх каналів
+
     setIsGenerating(false);
-    addLog("Завершення початкової генерації постів, переходимо в режим роботи за розкладом", 'info');
+    addLog("Генерація контенту на день завершена", 'success');
     
-    // Зберігаємо загальну статистику за день
-    const today = new Date().toISOString().split('T')[0];
-    setStatistics(prev => {
-      const todayStats = prev.dailyStats.find(stat => stat.date === today);
-      
-      if (todayStats) {
-        return {
-          ...prev,
-          dailyStats: prev.dailyStats.map(stat => 
-            stat.date === today 
-              ? { 
-                  ...stat, 
-                  generated: stat.generated + activeChannels.length, 
-                  published: stat.published + activeChannels.length 
-                }
-              : stat
-          ),
-        };
-      } else {
-        return {
-          ...prev,
-          dailyStats: [
-            ...prev.dailyStats, 
-            {
-              date: today,
-              generated: activeChannels.length,
-              published: activeChannels.length,
-            }
-          ],
-        };
-      }
+    updateBotStatus({
+      currentAction: 'Очікує часу публікації',
+      channelStatuses: channels.map(channel => ({
+        channelId: channel.id,
+        status: channel.isActive ? 'Готовий до публікації' : 'Неактивний',
+      })),
     });
-  }, [channels, botStatus, addLog, stopBot, updateBotStatus, generateAndPublishPost, toast]);
+  }, [channels, addLog, updateBotStatus, generateDailyPosts]);
 
   // Function to generate a test post
   const generateTestPost = useCallback(async (channelId: string): Promise<Post> => {
@@ -579,7 +600,6 @@ export const ChannelProvider = ({ children }: ChannelProviderProps) => {
       throw new Error(errorMessage);
     }
     
-    // Check if channel has valid credentials before proceeding
     if (!validateTelegramCredentials(channel.botToken, channel.chatId)) {
       const errorMessage = `Канал "${channel.name}" має невірні дані для Telegram: перевірте Bot Token та Chat ID`;
       addLog(errorMessage, 'error');
@@ -590,13 +610,8 @@ export const ChannelProvider = ({ children }: ChannelProviderProps) => {
     addLog(`Початок генерації тестового посту для каналу "${channel.name}"`, 'info');
     
     try {
-      // Встановлюємо таймаут для відслідковування можливого зависання
       setupGenerationTimeout(channelId);
-      
-      // Генеруємо і публікуємо пост
       const post = await generateAndPublishPost(channelId);
-      
-      // Очищаємо таймаут, оскільки операція успішно завершена
       clearGenerationTimeout(channelId);
       
       addLog(`Тестовий пост для каналу "${channel.name}" успішно згенеровано та опубліковано`, 'success', { 
@@ -607,9 +622,7 @@ export const ChannelProvider = ({ children }: ChannelProviderProps) => {
       setIsGenerating(false);
       return post;
     } catch (error) {
-      // Очищаємо таймаут при помилці
       clearGenerationTimeout(channelId);
-      
       setIsGenerating(false);
       const errorMessage = `Помилка під час тестового посту для каналу "${channel.name}": ${error instanceof Error ? error.message : String(error)}`;
       addLog(errorMessage, 'error');
@@ -632,12 +645,11 @@ export const ChannelProvider = ({ children }: ChannelProviderProps) => {
       return;
     }
 
-    setIsGenerating(true);
     addLog("Запуск бота", 'success');
     
     updateBotStatus({
       isRunning: true,
-      currentAction: 'Запуск процесу генерації постів',
+      currentAction: 'Ініціалізація',
       channelStatuses: channels.map(channel => ({
         channelId: channel.id,
         status: channel.isActive ? 'Очікує генерації' : 'Неактивний',
@@ -646,18 +658,17 @@ export const ChannelProvider = ({ children }: ChannelProviderProps) => {
 
     toast({ 
       title: "Бота запущено", 
-      description: "Бот розпочав генерацію контенту" 
+      description: "Бот розпочав роботу. Генерується контент на день." 
     });
     
-    // Запускаємо процес генерації та публікації постів
-    processChannels();
-  }, [channels, addLog, toast, updateBotStatus, processChannels]);
+    // Start daily generation for all active channels
+    startDailyGeneration();
+  }, [channels, addLog, toast, updateBotStatus, startDailyGeneration]);
 
-  // Set up scheduler
+  // Set up scheduler to check for scheduled posts every minute
   useEffect(() => {
     if (!botStatus.isRunning) return;
 
-    // Check for scheduled posts every minute
     const intervalId = setInterval(() => {
       checkScheduledPosts();
     }, 60000); // Every minute
@@ -670,6 +681,28 @@ export const ChannelProvider = ({ children }: ChannelProviderProps) => {
     };
   }, [botStatus.isRunning, channels, checkScheduledPosts]);
 
+  // Reset daily post tracking at midnight
+  useEffect(() => {
+    const now = new Date();
+    const tomorrow = new Date(now);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    tomorrow.setHours(0, 0, 0, 0);
+    
+    const timeUntilMidnight = tomorrow.getTime() - now.getTime();
+    
+    const midnightTimeout = setTimeout(() => {
+      setLastPostTimes({});
+      addLog("Скидання денного розкладу публікацій", 'info');
+      
+      // Start daily generation for the new day if bot is running
+      if (botStatus.isRunning) {
+        startDailyGeneration();
+      }
+    }, timeUntilMidnight);
+
+    return () => clearTimeout(midnightTimeout);
+  }, [botStatus.isRunning, startDailyGeneration, addLog]);
+
   // New function to update an existing post
   const updatePost = useCallback(async (updatedPost: Post): Promise<void> => {
     const channel = channels.find(c => c.id === updatedPost.channelId);
@@ -681,7 +714,6 @@ export const ChannelProvider = ({ children }: ChannelProviderProps) => {
 
     addLog(`Оновлення посту для каналу "${channel.name}"`, 'info', { postId: updatedPost.id });
 
-    // Update the post in the channel
     setChannels(prev => prev.map(c => 
       c.id === updatedPost.channelId 
         ? {
@@ -696,7 +728,6 @@ export const ChannelProvider = ({ children }: ChannelProviderProps) => {
     addLog(`Пост для каналу "${channel.name}" успішно оновлено`, 'success', { postId: updatedPost.id });
   }, [channels, addLog]);
 
-  // New function to delete a post
   const deletePost = useCallback(async (postId: string, channelId: string): Promise<void> => {
     const channel = channels.find(c => c.id === channelId);
     if (!channel) {
@@ -707,7 +738,6 @@ export const ChannelProvider = ({ children }: ChannelProviderProps) => {
 
     addLog(`Видалення посту для каналу "${channel.name}"`, 'info', { postId });
 
-    // Remove the post from the channel
     setChannels(prev => prev.map(c => 
       c.id === channelId 
         ? {
@@ -731,7 +761,6 @@ export const ChannelProvider = ({ children }: ChannelProviderProps) => {
     
     setChannels((prev) => [...prev, newChannel]);
     
-    // Оновлюємо статистику
     setStatistics((prev) => ({
       ...prev,
       postsByChannel: [...prev.postsByChannel, { channelId: newChannel.id, generated: 0, published: 0 }],
@@ -764,7 +793,6 @@ export const ChannelProvider = ({ children }: ChannelProviderProps) => {
     const channelName = channels.find(c => c.id === id)?.name || '';
     setChannels((prev) => prev.filter((channel) => channel.id !== id));
     
-    // Видаляємо статистику для цього каналу
     setStatistics((prev) => ({
       ...prev,
       postsByChannel: prev.postsByChannel.filter((stats) => stats.channelId !== id),
@@ -778,21 +806,20 @@ export const ChannelProvider = ({ children }: ChannelProviderProps) => {
     });
   }, [channels, addLog, toast]);
 
-  // Очищаємо всі таймаути при знищенні компоненту
+  // Clear all timeouts on component unmount
   useEffect(() => {
     return () => {
       Object.values(generationTimeouts).forEach(timeout => clearTimeout(timeout));
     };
   }, [generationTimeouts]);
 
-  // Завантаження каналів з localStorage при ініціалізації
+  // Load channels from localStorage on initialization
   useEffect(() => {
     const savedChannels = localStorage.getItem('telegramChannels');
     if (savedChannels) {
       try {
         const parsedChannels = JSON.parse(savedChannels);
         
-        // Add schedule array if it doesn't exist in saved channels
         const updatedChannels = parsedChannels.map((channel: any) => ({
           ...channel,
           schedule: channel.schedule || []
@@ -805,34 +832,29 @@ export const ChannelProvider = ({ children }: ChannelProviderProps) => {
       }
     }
 
-    // Завантаження статистики з localStorage
     const savedStats = localStorage.getItem('telegramStatistics');
     if (savedStats) {
       setStatistics(JSON.parse(savedStats));
     }
 
-    // Завантаження логів з localStorage
     const savedLogs = localStorage.getItem('telegramBotLogs');
     if (savedLogs) {
       setBotLogs(JSON.parse(savedLogs));
     }
   }, []);
 
-  // Збереження каналів в localStorage при зміні
   useEffect(() => {
     if (channels.length > 0) {
       localStorage.setItem('telegramChannels', JSON.stringify(channels));
     }
   }, [channels]);
 
-  // Збереження статистики в localStorage при зміні
   useEffect(() => {
     localStorage.setItem('telegramStatistics', JSON.stringify(statistics));
   }, [statistics]);
 
-  // Збереження логів в localStorage при зміні
   useEffect(() => {
-    localStorage.setItem('telegramBotLogs', JSON.stringify(botLogs.slice(-100))); // Зберігаємо останні 100 логів
+    localStorage.setItem('telegramBotLogs', JSON.stringify(botLogs.slice(-100)));
   }, [botLogs]);
 
   const value = {
@@ -859,17 +881,29 @@ export const ChannelProvider = ({ children }: ChannelProviderProps) => {
   );
 };
 
-// Function to generate more realistic-looking Grok API responses
-const generateFakeGrokResponse = (prompt: string, topic: string): string => {
-  const responses = [
-    `🌟 #${topic.charAt(0).toUpperCase() + topic.slice(1)}Сьогодні 🌟\n\nВи знали, що в світі ${topic} відбувається справжня революція? 🚀\n\nОсь 3 факти, які вас здивують:\n\n1️⃣ Щорічно в сфері ${topic} з'являється понад 1000 інновацій\n2️⃣ Україна входить у топ-20 країн за розвитком ${topic}\n3️⃣ Понад 60% молоді обирає кар'єру пов'язану з ${topic}\n\nА що ви знаєте про ${topic}? Поділіться в коментарях! 👇`,
-    
-    `📣 Неймовірні новини зі світу ${topic}! 🔥\n\nСьогодні експерти оголосили про прорив, який змінить наше уявлення про ${topic}. Дослідження показали, що правильний підхід до ${topic} може підвищити якість вашого життя на 40%.\n\nЯк ви використовуєте ${topic} у повсякденному житті? Чекаємо ваших історій у коментарях! 💬`,
-    
-    `🤔 Чи замислювались ви колись, яку роль ${topic} грає в нашому житті?\n\nОсь що говорить статистика:\n- 78% людей щодня стикаються з ${topic}\n- Тільки 23% розуміють справжній потенціал ${topic}\n- До 2030 року ринок ${topic} зросте втричі!\n\nПідписуйтесь на наш канал, щоб дізнаватися більше цікавих фактів про ${topic} та інші теми! 📚✨`,
-    
-    `💡 ${topic.toUpperCase()} — ТРЕНД 2025 РОКУ 💡\n\nЕксперти одноголосно визнали ${topic} головним трендом наступного року! Що це означає для вас?\n\n👉 Нові можливості в кар'єрі\n👉 Покращення якості життя\n👉 Інвестиційні перспективи\n\nНе пропустіть наш наступний пост, де ми детально розберемо кожен аспект! 🔍\n\n#${topic.replace(/\s/g, '')} #ТрендиМайбутнього`
-  ];
+// Function to generate test content based on user's prompt
+const generateTestContentFromPrompt = (promptTemplate: string, channelName: string): string => {
+  if (promptTemplate.toLowerCase().includes('крипт')) {
+    return `🚀 Останні новини з криптосвіту!\n\nБіткоїн сьогодні показує стабільний ріст, а Ethereum демонструє цікаві тенденції. Аналітики прогнозують позитивні зміни на ринку в найближчі тижні.\n\n💰 Ключові моменти:\n• BTC: тестує рівень опору\n• ETH: активність DeFi зростає\n• Альткоїни: селективне зростання\n\n#crypto #bitcoin #ethereum #trading`;
+  }
   
-  return responses[Math.floor(Math.random() * responses.length)];
+  return `Пост для каналу "${channelName}" згенеровано на основі вашого промпту: "${promptTemplate}"\n\nЧас створення: ${new Date().toLocaleTimeString()}`;
+};
+
+// Function to generate more realistic-looking Grok API responses based on user prompt
+const generateGrokResponse = (promptTemplate: string): string => {
+  if (promptTemplate.toLowerCase().includes('крипт')) {
+    const cryptoResponses = [
+      `🔥 КРИПТОНОВИНИ СЬОГОДНІ 🔥\n\nБіткоїн тестує ключовий рівень $43,500. Обсяги торгів зросли на 23% за останні 24 години.\n\n📊 Технічний аналіз:\n• RSI: 58 (нейтральна зона)\n• Підтримка: $42,800\n• Опір: $44,200\n\n💡 Думка аналітиків: можливий прорив вгору при закріпленні вище $43,800\n\n#Bitcoin #Crypto #Analysis #Trading`,
+      
+      `⚡ ETHEREUM НА НОВОМУ ЕТАПІ ⚡\n\nЗапуск нових оновлень мережі показує вражаючі результати:\n\n🚀 Ключові показники:\n• Gas fees знизились на 40%\n• TPS збільшилась до 15\n• Активних адрес: 800K+ щодня\n\nDeFi протоколи демонструють рекордну активність. Загальна вартість заблокованих коштів (TVL) досягла $38 млрд.\n\n#Ethereum #DeFi #Blockchain`,
+      
+      `📈 АЛЬТКОЇНИ У ФОКУСІ 📈\n\nТоп-3 альткоїна тижня за зростанням:\n\n1️⃣ Solana (SOL): +18%\n2️⃣ Cardano (ADA): +15%\n3️⃣ Polygon (MATIC): +12%\n\n🔍 Фундаментальні фактори:\n• Нові партнерства\n• Технічні оновлення\n• Ріст екосистеми\n\nІнвестори переключають увагу на проекти з реальною корисністю.\n\n#Altcoins #Solana #Cardano #Polygon`
+    ];
+    
+    return cryptoResponses[Math.floor(Math.random() * cryptoResponses.length)];
+  }
+  
+  // For other prompts, generate content based on the template
+  return `Контент згенеровано на основі промпту: "${promptTemplate}"\n\nЧас створення: ${new Date().toLocaleString()}\n\nЦе приклад того, як працював би справжній Grok API з вашим промптом. Додайте справжній API ключ для повноцінної роботи.`;
 };
