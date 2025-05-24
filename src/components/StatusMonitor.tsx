@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useChannelContext } from '@/context/ChannelContext';
+import { useDatabaseChannelContext } from '@/context/DatabaseChannelContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
@@ -9,7 +9,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { formatDateTime } from '@/lib/utils';
 
 const StatusMonitor = () => {
-  const { botStatus, channels, isGenerating, stopBot } = useChannelContext();
+  const { botStatus, channels, isGenerating, stopBot } = useDatabaseChannelContext();
   const [progress, setProgress] = useState(10); // Start with 10% to show immediate feedback
   const [showTimeoutWarning, setShowTimeoutWarning] = useState(false);
   const [processingTime, setProcessingTime] = useState(0);
