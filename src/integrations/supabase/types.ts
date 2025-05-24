@@ -9,7 +9,148 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      [_ in never]: never
+      bot_logs: {
+        Row: {
+          created_at: string
+          details: Json | null
+          id: string
+          message: string
+          type: string
+        }
+        Insert: {
+          created_at?: string
+          details?: Json | null
+          id?: string
+          message: string
+          type: string
+        }
+        Update: {
+          created_at?: string
+          details?: Json | null
+          id?: string
+          message?: string
+          type?: string
+        }
+        Relationships: []
+      }
+      channel_schedules: {
+        Row: {
+          channel_id: string | null
+          created_at: string
+          hour: number
+          id: string
+          minute: number
+        }
+        Insert: {
+          channel_id?: string | null
+          created_at?: string
+          hour: number
+          id?: string
+          minute: number
+        }
+        Update: {
+          channel_id?: string | null
+          created_at?: string
+          hour?: number
+          id?: string
+          minute?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "channel_schedules_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "channels"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      channels: {
+        Row: {
+          bot_token: string
+          chat_id: string
+          created_at: string
+          grok_api_key: string | null
+          id: string
+          is_active: boolean
+          name: string
+          prompt_template: string | null
+          updated_at: string
+        }
+        Insert: {
+          bot_token: string
+          chat_id: string
+          created_at?: string
+          grok_api_key?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          prompt_template?: string | null
+          updated_at?: string
+        }
+        Update: {
+          bot_token?: string
+          chat_id?: string
+          created_at?: string
+          grok_api_key?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          prompt_template?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      posts: {
+        Row: {
+          channel_id: string | null
+          created_at: string
+          error: string | null
+          id: string
+          image_url: string | null
+          published_at: string | null
+          scheduled_for: string | null
+          status: string
+          telegram_post_id: string | null
+          text: string
+          updated_at: string
+        }
+        Insert: {
+          channel_id?: string | null
+          created_at?: string
+          error?: string | null
+          id?: string
+          image_url?: string | null
+          published_at?: string | null
+          scheduled_for?: string | null
+          status: string
+          telegram_post_id?: string | null
+          text: string
+          updated_at?: string
+        }
+        Update: {
+          channel_id?: string | null
+          created_at?: string
+          error?: string | null
+          id?: string
+          image_url?: string | null
+          published_at?: string | null
+          scheduled_for?: string | null
+          status?: string
+          telegram_post_id?: string | null
+          text?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "posts_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "channels"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never

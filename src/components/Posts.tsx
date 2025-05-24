@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useChannelContext } from '@/context/ChannelContext';
+import { useDatabaseChannelContext } from '@/context/DatabaseChannelContext';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -17,7 +17,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 
 const Posts = () => {
-  const { channels, botLogs, publishPost, deletePost, updatePost } = useChannelContext();
+  const { channels, botLogs, publishPost, deletePost, updatePost, refreshData } = useDatabaseChannelContext();
   const [selectedChannelId, setSelectedChannelId] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastRefreshed, setLastRefreshed] = useState(new Date());
@@ -50,11 +50,11 @@ const Posts = () => {
   // Force refresh state to trigger re-rendering when new posts are generated
   useEffect(() => {
     const interval = setInterval(() => {
-      setLastRefreshed(new Date());
-    }, 5000); // Check for updates every 5 seconds
+      refreshData();
+    }, 30000); // Check for updates every 30 seconds
     
     return () => clearInterval(interval);
-  }, []);
+  }, [refreshData]);
 
   useEffect(() => {
     // Log post counts every time they change
@@ -63,15 +63,13 @@ const Posts = () => {
 
   const refreshPosts = () => {
     setIsRefreshing(true);
-    // Simply updating the refresh timestamp will trigger a re-render
-    setTimeout(() => {
-      setLastRefreshed(new Date());
+    refreshData().finally(() => {
       setIsRefreshing(false);
       toast({
         title: "Пости оновлено",
         description: `Всього постів: ${allPosts.length}`
       });
-    }, 500);
+    });
   };
 
   const getStatusBadgeColor = (status: string) => {

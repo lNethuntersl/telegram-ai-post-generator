@@ -1,6 +1,5 @@
-
 import React, { useState } from 'react';
-import { useChannelContext } from '@/context/ChannelContext';
+import { useDatabaseChannelContext } from '@/context/DatabaseChannelContext';
 import { Channel } from '@/types';
 import {
   Card,
@@ -29,7 +28,7 @@ import { Edit, Trash2, Settings, Play, Calendar } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 
 const ChannelsList = () => {
-  const { channels, deleteChannel, updateChannel, generateTestPost } = useChannelContext();
+  const { channels, deleteChannel, updateChannel, generateTestPost } = useDatabaseChannelContext();
   const [editingChannel, setEditingChannel] = useState<Channel | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [channelToDelete, setChannelToDelete] = useState<Channel | null>(null);
