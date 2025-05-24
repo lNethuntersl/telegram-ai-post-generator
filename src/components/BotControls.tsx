@@ -1,6 +1,5 @@
-
 import React from 'react';
-import { useChannelContext } from '@/context/ChannelContext';
+import { useDatabaseChannelContext } from '@/context/DatabaseChannelContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Play, Square, RefreshCw, Calendar, AlertTriangle } from 'lucide-react';
@@ -8,7 +7,7 @@ import { formatTime } from '@/lib/utils';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 
 const BotControls = () => {
-  const { startBot, stopBot, botStatus, channels, isGenerating } = useChannelContext();
+  const { startBot, stopBot, botStatus, channels, isGenerating } = useDatabaseChannelContext();
 
   const activeChannels = channels.filter(channel => channel.isActive);
   const activeChannelsCount = activeChannels.length;
