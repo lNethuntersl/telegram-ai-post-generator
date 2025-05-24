@@ -102,7 +102,10 @@ export const DatabaseChannelProvider = ({ children }: DatabaseChannelProviderPro
         convertDbChannelToChannel(
           dbChannel,
           dbChannel.channel_schedules || [],
-          dbChannel.posts || []
+          (dbChannel.posts || []).map(post => ({
+            ...post,
+            status: post.status as 'pending' | 'generated' | 'published' | 'failed'
+          }))
         )
       );
 
