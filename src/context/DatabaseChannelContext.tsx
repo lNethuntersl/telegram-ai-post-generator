@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Channel, Post, BotStatus, Statistics, BotLog, ScheduleTime } from '../types';
@@ -96,7 +95,10 @@ export const DatabaseChannelProvider = ({ children }: DatabaseChannelProviderPro
         `)
         .order('created_at', { ascending: false });
 
-      if (channelsError) throw channelsError;
+      if (channelsError) {
+        console.error('Error loading channels:', channelsError);
+        throw new Error(`Failed to load channels: ${channelsError.message}`);
+      }
 
       const convertedChannels = (dbChannels || []).map(dbChannel => 
         convertDbChannelToChannel(
@@ -118,7 +120,10 @@ export const DatabaseChannelProvider = ({ children }: DatabaseChannelProviderPro
         .order('created_at', { ascending: false })
         .limit(100);
 
-      if (logsError) throw logsError;
+      if (logsError) {
+        console.error('Error loading bot logs:', logsError);
+        throw new Error(`Failed to load bot logs: ${logsError.message}`);
+      }
 
       const convertedLogs = (dbLogs || []).map(log => ({
         timestamp: log.created_at,
@@ -148,12 +153,13 @@ export const DatabaseChannelProvider = ({ children }: DatabaseChannelProviderPro
       });
 
     } catch (error) {
-      console.error('Error loading data:', error);
+      console.error('Detailed error loading data:', error);
       toast({
         title: "Помилка завантаження",
-        description: "Не вдалося завантажити дані з бази",
+        description: error instanceof Error ? error.message : "Не вдалося завантажити дані з бази",
         variant: "destructive"
       });
+      throw error; // Re-throw to be caught by ErrorBoundary
     }
   }, [toast]);
 
