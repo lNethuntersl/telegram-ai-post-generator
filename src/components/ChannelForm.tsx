@@ -1,6 +1,5 @@
-
 import React, { useState, useEffect } from 'react';
-import { useChannelContext } from '@/context/ChannelContext';
+import { useDatabaseChannelContext } from '@/context/DatabaseChannelContext';
 import { Channel } from '@/types';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -39,7 +38,7 @@ interface ChannelFormProps {
 }
 
 const ChannelForm = ({ editChannel, onClose, isEdit = false }: ChannelFormProps) => {
-  const { addChannel, updateChannel } = useChannelContext();
+  const { addChannel, updateChannel } = useDatabaseChannelContext();
   const [name, setName] = useState('');
   const [botToken, setBotToken] = useState('');
   const [chatId, setChatId] = useState('');
